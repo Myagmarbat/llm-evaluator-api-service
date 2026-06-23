@@ -61,6 +61,7 @@ fi
 export TF_VAR_do_token="${DIGITALOCEAN_TOKEN}"
 export TF_VAR_inference_api_key="${INFERENCE_API_KEY}"
 export TF_VAR_image_tag="${IMAGE_TAG}"
+export TF_VAR_registry_name="${REGISTRY_NAME:-llmeval-dev}"
 
 terraform_env_init
 
@@ -134,6 +135,7 @@ migrate_registry_state_if_needed() {
 
 ensure_shared_registry
 migrate_registry_state_if_needed
+export TF_VAR_registry_name="${REGISTRY_NAME}"
 
 echo "==> Refreshing registry credentials..."
 import_if_missing digitalocean_container_registry_docker_credentials.main "${REGISTRY_NAME}"
