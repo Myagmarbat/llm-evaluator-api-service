@@ -1,0 +1,23 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.env
+*.db
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+build/
+.bin/
+
+# Terraform (any service)
+**/.terraform/
+**/terraform.tfstate
+**/terraform.tfstate.backup
+**/terraform/terraform.tfvars
+**/terraform/backend.hcl
+**/crash.log

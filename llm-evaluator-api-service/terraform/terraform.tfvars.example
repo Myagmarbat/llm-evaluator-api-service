@@ -1,0 +1,18 @@
+# Copy to terraform.tfvars (never commit secrets)
+
+project_name  = "shadow-llm-proxy"
+environment   = "production"
+region        = "nyc"
+registry_region = "nyc3"
+image_tag     = "latest"
+
+primary_model   = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+candidate_model = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+
+min_instances      = 2
+max_instances      = 10
+instance_size_slug = "professional-xs"
+
+# Set via environment for CI/CD — do not commit:
+# do_token          = "dop_v1_..."
+# inference_api_key = "dop_v1_..."

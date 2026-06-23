@@ -1,0 +1,14 @@
+[project]
+name = "shadow-llm-proxy"
+version = "1.0.0"
+description = "Production-ready LLM proxy with asynchronous shadow evaluation"
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["tests/*"]
