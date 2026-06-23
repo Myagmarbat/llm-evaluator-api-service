@@ -259,6 +259,16 @@ The script:
 3. Builds and pushes the Docker image to DOCR
 4. `terraform apply` — App Platform service
 
+**Docker requirement:** `deploy.sh` needs a running Docker daemon to build and push the image. Cursor/devcontainer environments often cannot run Docker internally.
+
+| Environment | Recommended approach |
+|-------------|---------------------|
+| Cursor / devcontainer | Use **GitHub Actions CD** (Docker available on `ubuntu-latest` runners) |
+| Mac with OrbStack / Docker Desktop | Run `./scripts/deploy.sh` from a local terminal with Docker running |
+| Linux server | Install Docker Engine, ensure `docker info` succeeds, then run `./scripts/deploy.sh` |
+
+To deploy without local Docker, add `DIGITALOCEAN_TOKEN` and `INFERENCE_API_KEY` as GitHub secrets, then run the **CD** workflow from **Actions → CD → Run workflow**.
+
 ### Deploy with Make / Terraform directly
 
 ```bash

@@ -25,7 +25,14 @@ if ! command -v terraform >/dev/null 2>&1; then
 fi
 
 if ! command -v docker >/dev/null 2>&1; then
-  echo "error: docker is required" >&2
+  echo "error: docker CLI is required (https://docs.docker.com/get-docker/)" >&2
+  exit 1
+fi
+
+if ! docker info >/dev/null 2>&1; then
+  echo "error: docker daemon is not running or not accessible" >&2
+  echo "hint: start Docker Desktop or OrbStack on your host machine" >&2
+  echo "hint: or deploy via GitHub Actions — the CD workflow builds and pushes the image on ubuntu-latest" >&2
   exit 1
 fi
 
