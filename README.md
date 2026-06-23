@@ -78,8 +78,8 @@ Create a `.env` file for local runs:
 
 ```env
 INFERENCE_API_KEY=your-inference-api-key
-PRIMARY_MODEL=meta-llama/Meta-Llama-3.1-8B-Instruct
-CANDIDATE_MODEL=meta-llama/Meta-Llama-3.1-8B-Instruct
+PRIMARY_MODEL=llama3.3-70b-instruct
+CANDIDATE_MODEL=mistral-3-14B
 ```
 
 ### Run locally
@@ -106,7 +106,27 @@ make test
 | PUT    | `/config`   | Update shadow routing percentage         |
 | GET    | `/health`   | Liveness probe                           |
 
-### Example: chat request
+### Live deployment (dev)
+
+App URL: **https://llm-eval-api-dev-8d2f6.ondigitalocean.app**
+
+```bash
+APP_URL=https://llm-eval-api-dev-8d2f6.ondigitalocean.app
+
+curl -s "$APP_URL/health" | jq .
+curl -s "$APP_URL/metrics" | jq .
+
+curl -s -X POST "$APP_URL/v1/chat" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messages": [{"role": "user", "content": "Reply with JSON only: {\"action\": \"buy\"}"}],
+    "temperature": 0
+  }' | jq .
+```
+
+Default models on App Platform: **primary** `llama3.3-70b-instruct`, **candidate** `mistral-3-14B` (DigitalOcean Inference model IDs).
+
+### Example: chat request (local)
 
 ```bash
 curl -s http://localhost:8000/v1/chat \
@@ -320,8 +340,8 @@ terraform output image_reference
 |----------|---------|-------------|
 | `INFERENCE_BASE_URL` | `https://inference.do-ai.run` | Inference API base URL |
 | `INFERENCE_API_KEY` | — | Inference API key (required in production) |
-| `PRIMARY_MODEL` | `meta-llama/Meta-Llama-3.1-8B-Instruct` | Primary model ID |
-| `CANDIDATE_MODEL` | `meta-llama/Meta-Llama-3.1-8B-Instruct` | Candidate model ID |
+| `PRIMARY_MODEL` | `llama3.3-70b-instruct` | Primary model ID |
+| `CANDIDATE_MODEL` | `mistral-3-14B` | Candidate model ID |
 | `SHADOW_QUEUE_MAX_SIZE` | `100` | Max pending shadow tasks |
 | `SHADOW_MAX_WORKERS` | `10` | Max concurrent shadow workers |
 | `SHADOW_TIMEOUT_SECONDS` | `30` | Candidate request timeout |

@@ -11,8 +11,8 @@ class Settings(BaseSettings):
     inference_base_url: str = "https://inference.do-ai.run"
     inference_api_key: str = ""
 
-    primary_model: str = "meta-llama/Meta-Llama-3.1-8B-Instruct"
-    candidate_model: str = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+    primary_model: str = "llama3.3-70b-instruct"
+    candidate_model: str = "mistral-3-14B"
 
     shadow_queue_max_size: int = Field(default=100, ge=1)
     shadow_max_workers: int = Field(default=10, ge=1)

@@ -87,13 +87,13 @@ variable "inference_base_url" {
 variable "primary_model" {
   type        = string
   description = "Primary LLM model identifier."
-  default     = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+  default     = "llama3.3-70b-instruct"
 }
 
 variable "candidate_model" {
   type        = string
   description = "Candidate LLM model identifier for shadow evaluation."
-  default     = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+  default     = "mistral-3-14B"
 }
 
 variable "shadow_queue_max_size" {
