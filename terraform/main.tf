@@ -23,7 +23,7 @@ resource "digitalocean_container_registry_docker_credentials" "main" {
 resource "digitalocean_app" "main" {
   lifecycle {
     precondition {
-      condition     = var.inference_api_key != null && trimspace(var.inference_api_key) != ""
+      condition     = try(trimspace(var.inference_api_key), "") != ""
       error_message = "inference_api_key must be set when deploying the App Platform service. Pass TF_VAR_inference_api_key or set it in terraform.tfvars."
     }
   }
