@@ -37,6 +37,7 @@ if ! docker info >/dev/null 2>&1; then
 fi
 
 export DIGITALOCEAN_TOKEN
+export DIGITALOCEAN_ACCESS_TOKEN="${DIGITALOCEAN_TOKEN}"
 if ! doctl account get >/dev/null 2>&1; then
   echo "error: doctl could not authenticate with DIGITALOCEAN_TOKEN" >&2
   exit 1
@@ -51,8 +52,21 @@ if [[ -n "${INFERENCE_API_KEY:-}" ]]; then
 fi
 
 cd "${TERRAFORM_DIR}"
+terraform init -input=false >/dev/null
+
+REGISTRY_TARGET_NAME="llmeval-${ENVIRONMENT}"
+
+import_if_missing() {
+  local resource="$1"
+  local id="$2"
+  if ! terraform state show "${resource}" >/dev/null 2>&1; then
+    terraform import "${resource}" "${id}" >/dev/null 2>&1 || true
+  fi
+}
 
 echo "==> Applying container registry..."
+import_if_missing digitalocean_container_registry.main "${REGISTRY_TARGET_NAME}"
+import_if_missing digitalocean_container_registry_docker_credentials.main "${REGISTRY_TARGET_NAME}"
 terraform apply \
   -target=digitalocean_container_registry.main \
   -target=digitalocean_container_registry_docker_credentials.main \
@@ -60,7 +74,7 @@ terraform apply \
 
 REGISTRY_ENDPOINT="$(terraform output -raw registry_endpoint)"
 REGISTRY_NAME="$(terraform output -raw registry_name)"
-IMAGE="${REGISTRY_ENDPOINT}/${REGISTRY_NAME}/${PROJECT_NAME}:${IMAGE_TAG}"
+IMAGE="${REGISTRY_ENDPOINT}/${PROJECT_NAME}:${IMAGE_TAG}"
 
 echo "==> Building and pushing ${IMAGE}..."
 doctl registry login

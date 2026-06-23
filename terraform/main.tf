@@ -1,7 +1,7 @@
 locals {
   short_name    = "llm-eval-api-${var.environment}"
   registry_name = "llmeval-${var.environment}"
-  image_ref     = "${digitalocean_container_registry.main.endpoint}/${digitalocean_container_registry.main.name}/${var.project_name}:${var.image_tag}"
+  image_ref     = "${digitalocean_container_registry.main.endpoint}/${var.project_name}:${var.image_tag}"
 }
 
 resource "digitalocean_container_registry" "main" {

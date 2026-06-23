@@ -45,14 +45,25 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: test
-    environment: production
     env:
       IMAGE_TAG: ${{ github.event.inputs.image_tag || github.sha }}
       DIGITALOCEAN_TOKEN: ${{ secrets.DIGITALOCEAN_TOKEN }}
+      DIGITALOCEAN_ACCESS_TOKEN: ${{ secrets.DIGITALOCEAN_TOKEN }}
       INFERENCE_API_KEY: ${{ secrets.INFERENCE_API_KEY }}
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Verify required secrets
+        run: |
+          if [ -z "${DIGITALOCEAN_TOKEN}" ]; then
+            echo "::error::DIGITALOCEAN_TOKEN secret is not set. Add it at Settings → Secrets → Actions."
+            exit 1
+          fi
+          if [ -z "${INFERENCE_API_KEY}" ]; then
+            echo "::error::INFERENCE_API_KEY secret is not set. Add it at Settings → Secrets → Actions."
+            exit 1
+          fi
 
       - uses: hashicorp/setup-terraform@v3
         with:
