@@ -22,7 +22,8 @@ image_tag   = "latest"
 # do_token          = "dop_v1_..."
 # inference_api_key = "your-inference-api-key"
 
-# Optional overrides:
+# Shared DOCR registry (one per DigitalOcean account). Override if your account uses a different name.
+# registry_name = "llmeval-dev"
 # instance_size_slug = "apps-d-1vcpu-0.5gb"  # dedicated CPU; enables 2-10 autoscaling
 # instance_size_slug = "basic-xs"              # shared CPU; uses fixed_instance_count instead
 # fixed_instance_count = 2

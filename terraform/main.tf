@@ -1,8 +1,7 @@
 locals {
   short_name        = "llm-eval-api-${var.environment}"
-  manage_registry   = var.environment == "dev"
   registry_name     = var.registry_name
-  registry_endpoint = local.manage_registry ? digitalocean_container_registry.main[0].endpoint : data.digitalocean_container_registry.shared[0].endpoint
+  registry_endpoint = data.digitalocean_container_registry.main.endpoint
   image_ref         = "${local.registry_endpoint}/${var.project_name}:${var.image_tag}"
   # CPU-based autoscaling is only supported on dedicated CPU App Platform sizes.
   cpu_autoscaling_enabled = startswith(var.instance_size_slug, "apps-d-") || contains([
@@ -12,22 +11,9 @@ locals {
   ], var.instance_size_slug)
 }
 
-# Dev Terraform state owns the account registry; other environments reference it.
-moved {
-  from = digitalocean_container_registry.main
-  to   = digitalocean_container_registry.main[0]
-}
-
-resource "digitalocean_container_registry" "main" {
-  count                  = local.manage_registry ? 1 : 0
-  name                   = var.registry_name
-  subscription_tier_slug = "basic"
-  region                 = var.region
-}
-
-data "digitalocean_container_registry" "shared" {
-  count = local.manage_registry ? 0 : 1
-  name  = var.registry_name
+# DigitalOcean allows one registry per account; all environments share it.
+data "digitalocean_container_registry" "main" {
+  name = var.registry_name
 }
 
 resource "digitalocean_container_registry_docker_credentials" "main" {

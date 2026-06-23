@@ -102,24 +102,46 @@ import_existing_app() {
   terraform -chdir="${TERRAFORM_DIR}" import ${VAR_FILE_ARGS} digitalocean_app.main "${app_id}" || true
 }
 
-echo "==> Ensuring container registry access..."
-if [[ "${ENVIRONMENT}" == "dev" ]]; then
-  import_if_missing "digitalocean_container_registry.main[0]" "${REGISTRY_NAME}"
-  # shellcheck disable=SC2086
-  terraform -chdir="${TERRAFORM_DIR}" apply \
-    ${VAR_FILE_ARGS} \
-    -target=digitalocean_container_registry.main[0] \
-    -target=digitalocean_container_registry_docker_credentials.main \
-    -auto-approve
-else
-  echo "==> Using shared registry ${REGISTRY_NAME} (managed by dev)"
-  import_if_missing digitalocean_container_registry_docker_credentials.main "${REGISTRY_NAME}"
-  # shellcheck disable=SC2086
-  terraform -chdir="${TERRAFORM_DIR}" apply \
-    ${VAR_FILE_ARGS} \
-    -target=digitalocean_container_registry_docker_credentials.main \
-    -auto-approve
-fi
+ensure_shared_registry() {
+  if doctl registry get "${REGISTRY_NAME}" >/dev/null 2>&1; then
+    echo "==> Using registry ${REGISTRY_NAME}"
+    return 0
+  fi
+
+  local existing_name
+  existing_name="$(doctl registry get --format Name --no-header 2>/dev/null | head -1 || true)"
+  if [[ -n "${existing_name}" ]]; then
+    echo "==> Account registry is ${existing_name} (using instead of ${REGISTRY_NAME})"
+    REGISTRY_NAME="${existing_name}"
+    export REGISTRY_NAME TF_VAR_registry_name="${existing_name}"
+    export REGISTRY_REPO="${REGISTRY_NAME}/${IMAGE_REPOSITORY}"
+    return 0
+  fi
+
+  echo "==> Creating shared registry ${REGISTRY_NAME}"
+  doctl registry create "${REGISTRY_NAME}" --region nyc3 --subscription-tier basic
+}
+
+migrate_registry_state_if_needed() {
+  if terraform -chdir="${TERRAFORM_DIR}" state show digitalocean_container_registry.main >/dev/null 2>&1; then
+    echo "==> Removing legacy registry resource from Terraform state (registry is shared via data source)"
+    terraform -chdir="${TERRAFORM_DIR}" state rm digitalocean_container_registry.main || true
+  fi
+  if terraform -chdir="${TERRAFORM_DIR}" state show 'digitalocean_container_registry.main[0]' >/dev/null 2>&1; then
+    terraform -chdir="${TERRAFORM_DIR}" state rm 'digitalocean_container_registry.main[0]' || true
+  fi
+}
+
+ensure_shared_registry
+migrate_registry_state_if_needed
+
+echo "==> Refreshing registry credentials..."
+import_if_missing digitalocean_container_registry_docker_credentials.main "${REGISTRY_NAME}"
+# shellcheck disable=SC2086
+terraform -chdir="${TERRAFORM_DIR}" apply \
+  ${VAR_FILE_ARGS} \
+  -target=digitalocean_container_registry_docker_credentials.main \
+  -auto-approve
 
 REGISTRY_ENDPOINT="$(terraform -chdir="${TERRAFORM_DIR}" output -raw registry_endpoint)"
 IMAGE="${REGISTRY_ENDPOINT}/${IMAGE_REPOSITORY}:${IMAGE_TAG}"

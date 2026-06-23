@@ -132,7 +132,10 @@ jobs:
     if: >-
       always() &&
       needs.test.result == 'success' &&
-      (needs.integration-dev.result == 'success' || needs.integration-dev.result == 'skipped') &&
+      (
+        (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production') ||
+        needs.integration-dev.result == 'success'
+      ) &&
       (github.event_name == 'push' ||
        github.event.inputs.environment == 'production' ||
        github.event.inputs.environment == 'both')
