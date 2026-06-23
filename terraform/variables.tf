@@ -45,8 +45,37 @@ variable "image_tag" {
 
 variable "instance_size_slug" {
   type        = string
-  description = "App Platform instance size. CPU autoscaling requires a dedicated CPU plan (apps-d-* or professional-*)."
+  description = "App Platform instance size. CPU autoscaling requires apps-d-* or professional-1l/l/xl."
   default     = "apps-d-1vcpu-0.5gb"
+}
+
+variable "fixed_instance_count" {
+  type        = number
+  description = "Fixed replica count when CPU autoscaling is not supported for the selected instance size."
+  default     = 2
+
+  validation {
+    condition     = var.fixed_instance_count >= 1 && var.fixed_instance_count <= 250
+    error_message = "fixed_instance_count must be between 1 and 250."
+  }
+}
+
+variable "autoscaling_min_instances" {
+  type        = number
+  description = "Minimum instances when CPU autoscaling is enabled."
+  default     = 2
+}
+
+variable "autoscaling_max_instances" {
+  type        = number
+  description = "Maximum instances when CPU autoscaling is enabled."
+  default     = 10
+}
+
+variable "autoscaling_cpu_percent" {
+  type        = number
+  description = "Average CPU utilization target (1-100) when CPU autoscaling is enabled."
+  default     = 80
 }
 
 variable "inference_base_url" {

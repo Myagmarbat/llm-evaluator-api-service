@@ -2,6 +2,12 @@ locals {
   short_name    = "llm-eval-api-${var.environment}"
   registry_name = "llmeval-${var.environment}"
   image_ref     = "${digitalocean_container_registry.main.endpoint}/${var.project_name}:${var.image_tag}"
+  # CPU-based autoscaling is only supported on dedicated CPU App Platform sizes.
+  cpu_autoscaling_enabled = startswith(var.instance_size_slug, "apps-d-") || contains([
+    "professional-1l",
+    "professional-l",
+    "professional-xl",
+  ], var.instance_size_slug)
 }
 
 resource "digitalocean_container_registry" "main" {
@@ -30,6 +36,7 @@ resource "digitalocean_app" "main" {
       name               = "api"
       http_port          = 8000
       instance_size_slug = var.instance_size_slug
+      instance_count     = local.cpu_autoscaling_enabled ? null : var.fixed_instance_count
 
       image {
         registry_type = "DOCR"
@@ -38,13 +45,16 @@ resource "digitalocean_app" "main" {
         tag           = var.image_tag
       }
 
-      autoscaling {
-        min_instance_count = 2
-        max_instance_count = 10
+      dynamic "autoscaling" {
+        for_each = local.cpu_autoscaling_enabled ? [1] : []
+        content {
+          min_instance_count = var.autoscaling_min_instances
+          max_instance_count = var.autoscaling_max_instances
 
-        metrics {
-          cpu {
-            percent = 80
+          metrics {
+            cpu {
+              percent = var.autoscaling_cpu_percent
+            }
           }
         }
       }
