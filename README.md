@@ -37,7 +37,6 @@ flowchart TB
 ## Project Structure
 
 ```
-llm-evaluator-api-service/
 ├── app/                    # FastAPI application
 │   ├── main.py             # Routes and lifespan wiring
 │   ├── config.py           # Settings and runtime config
@@ -54,7 +53,7 @@ llm-evaluator-api-service/
 │   └── ...
 ├── scripts/
 │   └── deploy.sh           # Registry → push → app deploy
-├── .github/workflows/      # CI/CD (at repository root)
+├── .github/workflows/      # CI/CD
 ├── Dockerfile
 ├── Makefile
 └── README.md
@@ -71,7 +70,6 @@ llm-evaluator-api-service/
 ### Setup
 
 ```bash
-cd llm-evaluator-api-service
 make install
 cp terraform/terraform.tfvars.example terraform/terraform.tfvars  # optional
 ```
@@ -184,7 +182,7 @@ This heuristic targets agent-style outputs (e.g. `{"action": "buy", ...}`) and i
 
 ### Continuous Integration
 
-Repository workflows live at `.github/workflows/` (repo root) and run on changes under `llm-evaluator-api-service/`:
+`.github/workflows/ci.yml` runs on every push and pull request:
 
 - **CI** — Python 3.11/3.12 tests with coverage, Terraform validate, Docker build
 - **CD** — deploy on push to `main` or manual `workflow_dispatch`
