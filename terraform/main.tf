@@ -1,8 +1,12 @@
 locals {
   short_name        = "llm-eval-api-${var.environment}"
   registry_name     = var.registry_name
-  registry_endpoint = data.digitalocean_container_registry.main.endpoint
-  image_ref         = "${local.registry_endpoint}/${var.project_name}:${var.image_tag}"
+  registry_endpoint = coalesce(
+    data.digitalocean_container_registry.main.endpoint,
+    data.digitalocean_container_registry.main.server_url,
+    "registry.digitalocean.com/${var.registry_name}"
+  )
+  image_ref = "${local.registry_endpoint}/${var.project_name}:${var.image_tag}"
   # CPU-based autoscaling is only supported on dedicated CPU App Platform sizes.
   cpu_autoscaling_enabled = startswith(var.instance_size_slug, "apps-d-") || contains([
     "professional-1l",

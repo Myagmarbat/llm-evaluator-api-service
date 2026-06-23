@@ -102,7 +102,7 @@ if [[ "${TF_CMD}" == "apply" || "${TF_CMD}" == "plan" || "${TF_CMD}" == "destroy
 
   if [[ "${TF_CMD}" == "apply" || "${TF_CMD}" == "plan" ]]; then
     if ! registry_has_tag "${TF_VAR_image_tag}"; then
-      echo "error: image tag '${TF_VAR_image_tag}' not found in DOCR (${REGISTRY_REPO})" >&2
+      echo "error: image tag '${TF_VAR_image_tag}' not found in DOCR repository ${REGISTRY_REPO}" >&2
       echo "hint: run ENVIRONMENT=${ENVIRONMENT} ./scripts/deploy.sh to build and push" >&2
       echo "hint: or set IMAGE_TAG to an existing tag, for example:" >&2
       list_registry_tags | sed 's/^/  - /' >&2

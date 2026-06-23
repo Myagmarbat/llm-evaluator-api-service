@@ -115,7 +115,7 @@ ensure_shared_registry() {
     echo "==> Account registry is ${existing_name} (using instead of ${REGISTRY_NAME})"
     REGISTRY_NAME="${existing_name}"
     export REGISTRY_NAME TF_VAR_registry_name="${existing_name}"
-    export REGISTRY_REPO="${REGISTRY_NAME}/${IMAGE_REPOSITORY}"
+    export REGISTRY_REPO="${IMAGE_REPOSITORY}"
     return 0
   fi
 

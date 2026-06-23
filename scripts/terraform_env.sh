@@ -9,7 +9,7 @@ terraform_env_init() {
   REGISTRY_NAME="${REGISTRY_NAME:-llmeval-dev}"
   export REGISTRY_NAME
   export IMAGE_REPOSITORY="${IMAGE_REPOSITORY:-llm-evaluator-api-service}"
-  export REGISTRY_REPO="${REGISTRY_REPO:-${REGISTRY_NAME}/${IMAGE_REPOSITORY}}"
+  export REGISTRY_REPO="${REGISTRY_REPO:-${IMAGE_REPOSITORY}}"
 
   STATE_DIR="${TERRAFORM_DIR}/state"
   mkdir -p "${STATE_DIR}"
