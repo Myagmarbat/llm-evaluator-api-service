@@ -1,24 +1,24 @@
 output "app_url" {
-  description = "Public HTTPS URL for the shadow LLM proxy."
-  value       = digitalocean_app.this.live_url
+  description = "Live URL of the deployed App Platform service."
+  value       = digitalocean_app.main.live_url
 }
 
 output "app_id" {
   description = "DigitalOcean App Platform application ID."
-  value       = digitalocean_app.this.id
+  value       = digitalocean_app.main.id
 }
 
 output "registry_endpoint" {
-  description = "DOCR endpoint for docker push."
-  value       = digitalocean_container_registry.this.endpoint
+  description = "Container registry endpoint for docker login and push."
+  value       = digitalocean_container_registry.main.endpoint
 }
 
 output "registry_name" {
-  description = "DOCR registry name."
-  value       = digitalocean_container_registry.this.name
+  description = "Container registry name."
+  value       = digitalocean_container_registry.main.name
 }
 
 output "image_reference" {
-  description = "Full image reference for the currently deployed tag."
-  value       = "${digitalocean_container_registry.this.endpoint}/${var.image_repository}:${var.image_tag}"
+  description = "Full image reference for the deployed container."
+  value       = local.image_ref
 }

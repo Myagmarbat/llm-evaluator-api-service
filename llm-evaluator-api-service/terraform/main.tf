@@ -1,106 +1,113 @@
 locals {
-  # App Platform app names must be 2–32 characters.
-  short_name = "llm-eval-api-${var.environment}"
-  app_name   = local.short_name
-
-  runtime_env = {
-    INFERENCE_API_KEY           = var.inference_api_key
-    PRIMARY_MODEL               = var.primary_model
-    CANDIDATE_MODEL             = var.candidate_model
-    SHADOW_QUEUE_MAX_SIZE       = tostring(var.shadow_queue_max_size)
-    SHADOW_MAX_WORKERS          = tostring(var.shadow_max_workers)
-    SHADOW_TIMEOUT_SECONDS      = tostring(var.shadow_timeout_seconds)
-    SHADOW_ROUTING_PERCENTAGE   = tostring(var.shadow_routing_percentage)
-    TRACE_DB_PATH               = "/tmp/traces.db"
-    PORT                        = "8000"
-  }
+  short_name    = "llm-eval-api-${var.environment}"
+  registry_name = "llmeval-${var.environment}"
+  image_ref     = "${digitalocean_container_registry.main.endpoint}/${digitalocean_container_registry.main.name}/${var.project_name}:${var.image_tag}"
 }
 
-resource "digitalocean_container_registry" "this" {
-  name                   = local.short_name
-  subscription_tier_slug = var.registry_tier
-  region                 = var.registry_region
+resource "digitalocean_container_registry" "main" {
+  name                   = local.registry_name
+  subscription_tier_slug = "basic"
+  region                 = var.region
 }
 
-resource "digitalocean_container_registry_docker_credentials" "this" {
-  registry_name = digitalocean_container_registry.this.name
-  write         = true
+resource "digitalocean_container_registry_docker_credentials" "main" {
+  registry_name = digitalocean_container_registry.main.name
 }
 
-resource "digitalocean_app" "this" {
+resource "digitalocean_app" "main" {
   lifecycle {
     precondition {
       condition     = var.inference_api_key != null && trimspace(var.inference_api_key) != ""
-      error_message = "Set INFERENCE_API_KEY (model access key) via TF_VAR_inference_api_key before deploying the app."
+      error_message = "inference_api_key must be set when deploying the App Platform service. Pass TF_VAR_inference_api_key or set it in terraform.tfvars."
     }
   }
 
   spec {
-    name   = local.app_name
+    name   = local.short_name
     region = var.region
 
     service {
       name               = "api"
       http_port          = 8000
-      instance_count     = var.min_instances
       instance_size_slug = var.instance_size_slug
 
       image {
         registry_type = "DOCR"
-        registry      = digitalocean_container_registry.this.name
-        repository    = var.image_repository
+        registry      = digitalocean_container_registry.main.name
+        repository    = var.project_name
         tag           = var.image_tag
+      }
 
-        deploy_on_push {
-          enabled = false
+      autoscaling {
+        min_instance_count = 2
+        max_instance_count = 10
+
+        metrics {
+          cpu {
+            percent = 80
+          }
         }
       }
 
       health_check {
-        initial_delay_seconds = 15
-        period_seconds        = 10
+        http_path             = "/health"
+        initial_delay_seconds = 10
+        period_seconds        = 30
         timeout_seconds       = 5
         success_threshold     = 1
         failure_threshold     = 3
-        http_path             = "/health"
       }
 
-      autoscaling {
-        min_instance_count = var.min_instances
-        max_instance_count = var.max_instances
-
-        metrics {
-          cpu {
-            percent = 70
-          }
-        }
+      env {
+        key   = "INFERENCE_API_KEY"
+        value = var.inference_api_key
+        type  = "SECRET"
       }
 
-      dynamic "env" {
-        for_each = local.runtime_env
-        content {
-          key   = env.key
-          value = env.value
-          type  = env.key == "INFERENCE_API_KEY" ? "SECRET" : "GENERAL"
-          scope = "RUN_TIME"
-        }
+      env {
+        key   = "INFERENCE_BASE_URL"
+        value = var.inference_base_url
       }
-    }
 
-    ingress {
-      rule {
-        component {
-          name = "api"
-        }
+      env {
+        key   = "PRIMARY_MODEL"
+        value = var.primary_model
+      }
 
-        match {
-          path {
-            prefix = "/"
-          }
-        }
+      env {
+        key   = "CANDIDATE_MODEL"
+        value = var.candidate_model
+      }
+
+      env {
+        key   = "SHADOW_QUEUE_MAX_SIZE"
+        value = tostring(var.shadow_queue_max_size)
+      }
+
+      env {
+        key   = "SHADOW_MAX_WORKERS"
+        value = tostring(var.shadow_max_workers)
+      }
+
+      env {
+        key   = "SHADOW_TIMEOUT_SECONDS"
+        value = tostring(var.shadow_timeout_seconds)
+      }
+
+      env {
+        key   = "SHADOW_ROUTING_PERCENTAGE"
+        value = tostring(var.shadow_routing_percentage)
+      }
+
+      env {
+        key   = "PRIMARY_TIMEOUT_SECONDS"
+        value = tostring(var.primary_timeout_seconds)
       }
     }
   }
 
-  depends_on = [digitalocean_container_registry.this]
+  depends_on = [
+    digitalocean_container_registry.main,
+    digitalocean_container_registry_docker_credentials.main,
+  ]
 }

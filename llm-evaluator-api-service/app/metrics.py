@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from threading import Lock
 
 
@@ -14,8 +14,6 @@ class MetricsSnapshot:
 
 
 class MetricsCollector:
-    """Thread-safe in-memory metrics for shadow evaluation."""
-
     def __init__(self) -> None:
         self._lock = Lock()
         self._snapshot = MetricsSnapshot()

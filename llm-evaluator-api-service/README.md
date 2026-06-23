@@ -1,119 +1,139 @@
 # LLM Evaluator API Service
 
-Production-ready API proxy that serves customer traffic through a **Primary** LLM endpoint while asynchronously mirroring the same requests to a **Candidate** LLM for shadow evaluation. Primary responses are returned immediately; candidate latency, errors, and evaluation never block the user path.
+A FastAPI proxy that serves synchronous primary LLM responses while running asynchronous shadow evaluation against a candidate model. Built for safe model rollouts on DigitalOcean Inference with bounded background load and observable match metrics.
 
 ## Architecture
 
 ```mermaid
 flowchart TB
-    Client([Client]) -->|POST /v1/chat| API[API Layer<br/>FastAPI]
+    Client([Client]) -->|POST /v1/chat| API[FastAPI Service]
+    API -->|sync| Primary[Primary LLM<br/>DigitalOcean Inference]
+    Primary -->|response| API
+    API -->|immediate| Client
 
-    subgraph sync_path [Synchronous Primary Path]
-        API --> Primary[Primary LLM<br/>DigitalOcean Inference]
-        Primary --> API
-        API -->|immediate response| Client
+    API -->|try_submit| Queue[Bounded Shadow Queue]
+    Queue -->|worker pool| Candidate[Candidate LLM<br/>DigitalOcean Inference]
+    Candidate --> Evaluator[Action Matcher]
+    Evaluator -->|mismatch| TraceDB[(SQLite Traces)]
+    Evaluator --> Metrics[In-Memory Metrics]
+
+    Client -->|GET /metrics| Metrics
+    Client -->|GET/PUT /config| API
+    Client -->|GET /health| API
+
+    subgraph App Platform
+        API
+        Queue
+        Evaluator
+        Metrics
+        TraceDB
     end
-
-    subgraph shadow_pool [Decoupled Shadow Evaluation Pool]
-        API -.->|non-blocking submit| Queue[Bounded Queue<br/>load shedding]
-        Queue --> Workers[Worker Pool<br/>semaphore-limited]
-        Workers --> Candidate[Candidate LLM]
-        Candidate --> Evaluator[Deterministic Evaluator<br/>JSON + action match]
-        Evaluator --> Metrics[(In-Memory Metrics)]
-        Evaluator -->|mismatch only| SQLite[(SQLite Traces)]
-    end
-
-    Client -->|GET /metrics| API
-    Client -->|PUT /config| API
 ```
 
-### Request flow
+**Request path:** `/v1/chat` calls the primary model and returns its response immediately. A copy of the request/response pair is enqueued for background comparison when routing rules allow.
 
-1. **POST /v1/chat** — Proxy forwards the payload to the Primary model via [DigitalOcean Serverless Inference](https://docs.digitalocean.com/products/inference/reference/api/serverless-inference/) (`https://inference.do-ai.run/v1/chat/completions`) and returns the response immediately.
-2. **Shadow submit** — The same payload and primary response are enqueued for background evaluation (subject to routing percentage and queue capacity).
-3. **Evaluation** — Once the candidate responds, a deterministic heuristic checks:
-   - Did both models return valid, parseable JSON in the assistant message content?
-   - Does the `action` key match exactly between primary and candidate?
-4. **Observability** — Counters are updated in memory; mismatches are persisted to SQLite asynchronously.
+**Shadow path:** Worker tasks dequeue items, call the candidate model with a shorter timeout, compare structured outputs, update metrics, and persist mismatches to SQLite.
 
-## Setup
+## Project Structure
+
+```
+llm-evaluator-api-service/
+├── app/                    # FastAPI application
+│   ├── main.py             # Routes and lifespan wiring
+│   ├── config.py           # Settings and runtime config
+│   ├── llm_client.py       # Inference HTTP client
+│   ├── shadow_queue.py     # Bounded async evaluation queue
+│   ├── evaluator.py        # Response comparison heuristic
+│   ├── metrics.py          # Thread-safe counters
+│   ├── trace_store.py      # SQLite mismatch persistence
+│   └── models.py           # Pydantic schemas
+├── tests/                  # Unit and integration tests
+├── terraform/              # DigitalOcean infrastructure
+│   ├── main.tf             # Registry + App Platform
+│   ├── bootstrap/          # Spaces bucket for remote state
+│   └── ...
+├── scripts/
+│   └── deploy.sh           # Registry → push → app deploy
+├── .github/workflows/      # Reusable CI/CD workflows
+├── Dockerfile
+├── Makefile
+└── README.md
+```
+
+## Local Development
 
 ### Prerequisites
 
 - Python 3.11+
-- A DigitalOcean inference API key (Personal Access Token or Gradient Model Access Key)
+- Docker (optional, for container testing)
+- `doctl` and Terraform (for deployment)
 
-### Install
+### Setup
 
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+cd llm-evaluator-api-service
+make install
+cp terraform/terraform.tfvars.example terraform/terraform.tfvars  # optional
 ```
 
-### Configuration
+Create a `.env` file for local runs:
 
-Copy and edit environment variables (or export them directly):
-
-```bash
-export INFERENCE_API_KEY="your-digitalocean-token"
-export PRIMARY_MODEL="meta-llama/Meta-Llama-3.1-8B-Instruct"
-export CANDIDATE_MODEL="meta-llama/Meta-Llama-3.1-8B-Instruct"
-export SHADOW_QUEUE_MAX_SIZE=100
-export SHADOW_MAX_WORKERS=10
-export SHADOW_TIMEOUT_SECONDS=30
-export SHADOW_ROUTING_PERCENTAGE=100
+```env
+INFERENCE_API_KEY=your-inference-api-key
+PRIMARY_MODEL=meta-llama/Meta-Llama-3.1-8B-Instruct
+CANDIDATE_MODEL=meta-llama/Meta-Llama-3.1-8B-Instruct
 ```
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `INFERENCE_BASE_URL` | `https://inference.do-ai.run` | Upstream inference API base URL |
-| `INFERENCE_API_KEY` | _(empty)_ | Bearer token for upstream auth |
-| `PRIMARY_MODEL` | `meta-llama/Meta-Llama-3.1-8B-Instruct` | Primary model ID |
-| `CANDIDATE_MODEL` | `meta-llama/Meta-Llama-3.1-8B-Instruct` | Candidate model ID |
-| `SHADOW_QUEUE_MAX_SIZE` | `100` | Max pending shadow tasks before load shedding |
-| `SHADOW_MAX_WORKERS` | `10` | Max concurrent candidate requests |
-| `SHADOW_TIMEOUT_SECONDS` | `30` | Candidate request timeout |
-| `SHADOW_ROUTING_PERCENTAGE` | `100` | Initial % of requests mirrored (0–100) |
-| `TRACE_DB_PATH` | `traces.db` | SQLite file for mismatch traces |
-
-### Run
+### Run locally
 
 ```bash
-uvicorn app.main:app --host 0.0.0.0 --port 8000
+uvicorn app.main:app --reload --port 8000
+# or
+make docker-build && make docker-run
 ```
 
-## API Usage
-
-### Chat (primary proxy)
+### Run tests
 
 ```bash
-curl -s -X POST http://localhost:8000/v1/chat \
+make test
+```
+
+## API Endpoints
+
+| Method | Path        | Description                              |
+|--------|-------------|------------------------------------------|
+| POST   | `/v1/chat`  | OpenAI-compatible chat completion proxy  |
+| GET    | `/metrics`  | Shadow evaluation counters and match rate|
+| GET    | `/config`   | Current runtime configuration            |
+| PUT    | `/config`   | Update shadow routing percentage         |
+| GET    | `/health`   | Liveness probe                           |
+
+### Example: chat request
+
+```bash
+curl -s http://localhost:8000/v1/chat \
   -H "Content-Type: application/json" \
   -d '{
-    "messages": [
-      {"role": "system", "content": "Respond with JSON only: {\"action\": \"<verb>\"}"},
-      {"role": "user", "content": "Find flights to Lisbon"}
-    ],
+    "messages": [{"role": "user", "content": "Return JSON with action buy"}],
     "temperature": 0
   }' | jq .
 ```
 
-### Metrics
+### Example: metrics
 
 ```bash
 curl -s http://localhost:8000/metrics | jq .
 ```
 
-Example response:
+Sample response:
 
 ```json
 {
   "total_requests": 42,
   "shadow_submitted": 40,
   "shadow_dropped": 2,
-  "shadow_errors": 1,
-  "shadow_timeouts": 0,
+  "shadow_errors": 0,
+  "shadow_timeouts": 1,
   "total_comparisons": 37,
   "total_matches": 35,
   "match_rate_percent": 94.59,
@@ -122,228 +142,162 @@ Example response:
 }
 ```
 
-### Mutating metrics (step-by-step)
+### Example: update shadow routing
 
-Send several chat requests to drive counters, then inspect metrics:
+Reduce background load by routing only 50% of requests to shadow evaluation:
 
 ```bash
-# 1. Baseline
-curl -s http://localhost:8000/metrics | jq .
-
-# 2. Send a chat request (increments total_requests, enqueues shadow)
-curl -s -X POST http://localhost:8000/v1/chat \
-  -H "Content-Type: application/json" \
-  -d '{"messages":[{"role":"user","content":"Return {\"action\": \"search\"}"}]}'
-
-# 3. Wait briefly for background evaluation
-sleep 1
-
-# 4. Check updated metrics (match rate, comparisons, etc.)
-curl -s http://localhost:8000/metrics | jq .
-
-# 5. Throttle shadow traffic to 50%
 curl -s -X PUT http://localhost:8000/config \
   -H "Content-Type: application/json" \
   -d '{"shadow_routing_percentage": 50}' | jq .
-
-# 6. Send more requests — roughly half will be mirrored
-for i in $(seq 1 10); do
-  curl -s -X POST http://localhost:8000/v1/chat \
-    -H "Content-Type: application/json" \
-    -d "{\"messages\":[{\"role\":\"user\",\"content\":\"request $i\"}]}" > /dev/null
-done
-
-sleep 2
-curl -s http://localhost:8000/metrics | jq '{total_requests, shadow_submitted, shadow_dropped, match_rate_percent}'
 ```
 
-### Runtime configuration
+## Memory Bounding
 
-```bash
-# Get current config
-curl -s http://localhost:8000/config | jq .
+The service is designed so background evaluation cannot exhaust instance memory or starve the primary request path:
 
-# Throttle shadow mirroring from 100% down to 25%
-curl -s -X PUT http://localhost:8000/config \
-  -H "Content-Type: application/json" \
-  -d '{"shadow_routing_percentage": 25}' | jq .
-```
+| Control | Default | Effect |
+|---------|---------|--------|
+| `shadow_queue_max_size` | 100 | Fixed-capacity `asyncio.Queue`. When full, new shadow tasks are **dropped** (`shadow_dropped` metric increments). |
+| `shadow_max_workers` | 10 | Semaphore limits concurrent candidate LLM calls per instance. |
+| `shadow_timeout_seconds` | 30 | Candidate requests time out independently of the primary path. |
+| `shadow_routing_percentage` | 100 | Runtime-tunable sampling (0–100%) via `PUT /config`. |
+| `primary_timeout_seconds` | 60 | Primary path timeout; shadow work never blocks this response. |
 
-## How this service bounds memory footprint under load
+**Per-instance scaling:** App Platform runs 2–10 instances (see Terraform). Each instance maintains its own in-memory queue, metrics, and SQLite file. Queue depth and worker counts are per process, not global.
 
-Shadow evaluation is intentionally **decoupled** from the primary request path and bounded on three axes:
+**Trace storage:** Mismatch traces are written to a local SQLite database (`traces.db`). On App Platform ephemeral filesystems this is suitable for debugging recent mismatches but is not durable across redeploys. Monitor `total_comparisons` vs `total_matches` via `/metrics` for rollout decisions.
 
-1. **Non-blocking enqueue with load shedding** — `try_submit()` uses `Queue.put_nowait()`. If the bounded queue (`SHADOW_QUEUE_MAX_SIZE`) is full, the task is **dropped immediately** and `shadow_dropped` is incremented. No unbounded backlog of pending evaluations can accumulate in memory.
+## Evaluation Heuristic
 
-2. **Worker concurrency cap** — A fixed pool of asyncio workers (`SHADOW_MAX_WORKERS`) guarded by a semaphore limits how many candidate HTTP calls run concurrently. Under burst traffic, excess work waits in the bounded queue or is shed; it never spawns unbounded tasks.
+Shadow evaluation compares structured actions extracted from LLM message content:
 
-3. **No response buffering on the hot path** — The primary handler only stores a reference to the request payload and primary response when enqueue succeeds. Candidate responses are processed and discarded (or a single SQLite row is written for mismatches). Metrics are fixed-size integer counters.
+1. Parse the `choices[0].message.content` field from both primary and candidate responses as JSON.
+2. Extract the `action` field when present.
+3. Mark `actions_match` when **both** responses contain valid JSON, both have a non-null `action`, and the actions are equal.
 
-Together, worst-case memory for shadow work is approximately:
+Invalid JSON or missing `action` fields result in `actions_match = false`. Mismatches are persisted to SQLite with the full request/response payloads for offline review.
 
-```
-O(SHADOW_QUEUE_MAX_SIZE × avg_task_size) + O(SHADOW_MAX_WORKERS × avg_response_size)
-```
-
-The primary proxy footprint stays stable regardless of candidate slowness or failure.
-
-## Evaluation heuristic
-
-For each completed shadow comparison:
-
-| Check | Rule |
-|-------|------|
-| JSON validity | Assistant `content` must parse as a JSON object |
-| Action extraction | Read `action` key from each parsed object |
-| Match | `primary.action == candidate.action` (exact string match) |
-
-A comparison counts toward `match_rate_percent` only when evaluation completes (candidate responded without error/timeout).
-
-## Persistent mismatch traces
-
-Mismatched evaluations are written asynchronously to `traces.db` (configurable via `TRACE_DB_PATH`). Each row stores the request payload, both responses, and the evaluation result for offline debugging.
-
-## Testing
-
-```bash
-pytest tests/ -v --cov=app
-```
-
-Tests cover:
-
-- Evaluator JSON/action matching logic
-- Metrics calculations
-- Shadow queue load shedding, timeouts, and routing percentage
-- Full API integration (chat, metrics, config, health)
+This heuristic targets agent-style outputs (e.g. `{"action": "buy", ...}`) and intentionally ignores free-form text similarity.
 
 ## CI/CD
 
-GitHub Actions runs on every push and pull request:
+### Continuous Integration
 
-| Workflow | Trigger | Jobs |
-|----------|---------|------|
-| [`ci.yml`](app/.github/workflows/ci.yml) | Push / PR | Tests (3.11 & 3.12), Terraform validate, Docker build |
-| [`cd.yml`](app/.github/workflows/cd.yml) | Push to `main` / manual | Test → build image → Terraform deploy |
+The repository root workflow (`.github/workflows/ci.yml`) triggers on changes under `llm-evaluator-api-service/` and calls the reusable service workflow.
 
-Workflow definitions live in `app/.github/workflows/`. Thin trigger wrappers at the repo root (`.github/workflows/`) call them — required by GitHub Actions.
+The service CI workflow:
 
-## DigitalOcean deployment
+- Installs Python 3.12 dependencies
+- Runs `pytest` with coverage
 
-Production infrastructure is defined in [`terraform/`](terraform/) and targets **high availability** via DigitalOcean App Platform:
+### Continuous Deployment
 
-- **2+ instances** minimum across the App Platform fleet (configurable `min_instances`)
-- **CPU autoscaling** up to `max_instances` (default 10)
-- **Built-in HTTPS load balancer** with `/health` probes
-- **Container Registry (DOCR)** for immutable image deploys
+The root CD workflow (`.github/workflows/cd.yml`) calls the service CD workflow on pushes to `main` or manual `workflow_dispatch`.
 
-```mermaid
-flowchart LR
-    subgraph GitHub
-        PR[Pull Request] --> CI[CI: test + tf validate + docker build]
-        Main[Push to main] --> CD[CD: test + docker push + terraform apply]
-    end
+**Required GitHub secrets:**
 
-    subgraph DigitalOcean
-        CD --> DOCR[(Container Registry)]
-        CD --> TF[Terraform]
-        TF --> App[App Platform<br/>2–10 instances]
-        DOCR --> App
-        App --> LB[Managed HTTPS LB]
-        LB --> Users([Clients])
-        App --> Inference[Serverless Inference API]
-    end
-```
+| Secret | Description |
+|--------|-------------|
+| `DIGITALOCEAN_TOKEN` | DigitalOcean API token with registry and App Platform access |
+| `INFERENCE_API_KEY` | DigitalOcean Inference API key |
 
-### Prerequisites
+**Optional secrets (remote Terraform state):**
 
-1. DigitalOcean account with API token (`read` + `write`)
-2. GitHub repository with Actions enabled
-3. (Recommended) DigitalOcean Spaces bucket for remote Terraform state — bootstrap via [`terraform/bootstrap/`](terraform/bootstrap/)
+| Secret | Description |
+|--------|-------------|
+| `TF_STATE_BUCKET` | Spaces bucket name |
+| `TF_STATE_REGION` | Spaces region (e.g. `nyc3`) |
+| `SPACES_ACCESS_KEY_ID` | Spaces access key |
+| `SPACES_SECRET_ACCESS_KEY` | Spaces secret key |
 
-### GitHub secrets
+When `TF_STATE_BUCKET` is **not** set, CD runs `terraform init -backend=false` (local/ephemeral state in the runner). When set, CD switches to an S3-compatible Spaces backend using generated `backend.hcl`.
 
-| Secret | Required | Description |
-|--------|----------|-------------|
-| `DIGITALOCEAN_TOKEN` | Yes | API token for Terraform and `doctl` |
-| `INFERENCE_API_KEY` | Yes | Serverless Inference key injected into App Platform |
-| `TF_STATE_BUCKET` | Recommended | Spaces bucket name for remote state |
-| `SPACES_ACCESS_KEY_ID` | Recommended | Spaces access key |
-| `SPACES_SECRET_ACCESS_KEY` | Recommended | Spaces secret key |
+## DigitalOcean Deployment
 
-Create the GitHub **production** environment (Settings → Environments) to gate deploy approvals.
+### Infrastructure
 
-### One-time bootstrap (remote state)
+Terraform provisions:
 
-```bash
-cd terraform/bootstrap
-terraform init
-terraform apply -var="do_token=$DIGITALOCEAN_TOKEN"
+- **Container Registry (DOCR)** — stores application images
+- **Docker credentials** — enables `doctl registry login`
+- **App Platform service** — autoscaling 2–10 instances, health check on `/health`
 
-# Copy terraform/backend.hcl.example → terraform/backend.hcl and fill in bucket name
-cd ..
-terraform init -backend-config=backend.hcl
-```
+App name is shortened for the 32-character App Platform limit: `llm-eval-api-{environment}`.
 
-### Manual deploy
+### Authentication
+
+Provide credentials via environment variables (recommended):
 
 ```bash
 export DIGITALOCEAN_TOKEN="dop_v1_..."
+export INFERENCE_API_KEY="your-inference-api-key"
+```
+
+The DigitalOcean provider reads `DIGITALOCEAN_TOKEN` when `do_token` is null. The app deployment requires `TF_VAR_inference_api_key` or `INFERENCE_API_KEY` (used by `scripts/deploy.sh`).
+
+See `terraform/terraform.tfvars.example` for all options.
+
+### Bootstrap remote state (optional)
+
+```bash
+cd terraform/bootstrap
+export DIGITALOCEAN_TOKEN="dop_v1_..."
+terraform init
+terraform apply -var="bucket_name=your-unique-tfstate-bucket"
+```
+
+Then follow `terraform/backend.hcl.example` to configure remote state.
+
+### Deploy with script
+
+```bash
+export DIGITALOCEAN_TOKEN="dop_v1_..."
+export INFERENCE_API_KEY="your-inference-api-key"
+export ENVIRONMENT=dev          # optional, default: dev
+export IMAGE_TAG=latest         # optional, default: latest
+
+./scripts/deploy.sh
+```
+
+The script:
+
+1. Verifies `DIGITALOCEAN_TOKEN` with `doctl account get`
+2. `terraform apply` — container registry and docker credentials
+3. Builds and pushes the Docker image to DOCR
+4. `terraform apply` — App Platform service
+
+### Deploy with Make / Terraform directly
+
+```bash
+make tf-init
 export TF_VAR_do_token="$DIGITALOCEAN_TOKEN"
-export TF_VAR_inference_api_key="your-inference-key"
+export TF_VAR_inference_api_key="$INFERENCE_API_KEY"
+make tf-apply
+```
 
-# 1. Create registry + app infrastructure
+### Terraform outputs
+
+```bash
 cd terraform
-terraform init -backend-config=backend.hcl   # or -backend=false for local state
-terraform apply -target=digitalocean_container_registry.this
-
-# 2. Build and push image
-doctl registry login
-REGISTRY=$(terraform output -raw registry_endpoint)
-docker build -t "$REGISTRY/llm-evaluator-api-service:latest" ..
-docker push "$REGISTRY/llm-evaluator-api-service:latest"
-
-# 3. Deploy / update App Platform
-terraform apply -var="image_tag=latest"
 terraform output app_url
+terraform output image_reference
 ```
 
-### Scaling and HA knobs
+## Configuration Reference
 
-Edit `terraform/terraform.tfvars` or pass `-var` flags:
-
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| `min_instances` | `2` | HA floor — always at least 2 running instances |
-| `max_instances` | `10` | Autoscale ceiling |
-| `instance_size_slug` | `professional-xs` | Per-instance CPU/RAM |
-| `region` | `nyc` | App Platform region |
-
-App Platform performs rolling deploys and removes unhealthy instances automatically when `/health` fails.
-
-### Multi-instance caveats
-
-- **`GET /metrics`** returns counters for the instance that served the request (in-memory per instance). For fleet-wide metrics, add a Prometheus sidecar or external aggregator as a follow-up.
-- **SQLite mismatch traces** are stored on each instance's ephemeral `/tmp` volume. For shared trace storage, migrate to DigitalOcean Managed PostgreSQL.
-
-## Project structure
-
-This service lives at `llm-evaluator-api-service/` in the monorepo:
-
-```
-llm-evaluator-api-service/
-├── app/
-│   ├── .github/workflows/  # CI/CD workflow definitions
-│   ├── main.py
-│   └── ...
-├── terraform/            # DigitalOcean infrastructure (DOCR + App Platform)
-│   └── bootstrap/        # One-time Spaces bucket for remote state
-├── tests/
-├── Dockerfile
-└── Makefile
-```
-
-Root `.github/workflows/` contains thin triggers that call these workflows (GitHub requirement).
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `INFERENCE_BASE_URL` | `https://inference.do-ai.run` | Inference API base URL |
+| `INFERENCE_API_KEY` | — | Inference API key (required in production) |
+| `PRIMARY_MODEL` | `meta-llama/Meta-Llama-3.1-8B-Instruct` | Primary model ID |
+| `CANDIDATE_MODEL` | `meta-llama/Meta-Llama-3.1-8B-Instruct` | Candidate model ID |
+| `SHADOW_QUEUE_MAX_SIZE` | `100` | Max pending shadow tasks |
+| `SHADOW_MAX_WORKERS` | `10` | Max concurrent shadow workers |
+| `SHADOW_TIMEOUT_SECONDS` | `30` | Candidate request timeout |
+| `SHADOW_ROUTING_PERCENTAGE` | `100` | Initial shadow sampling rate |
+| `PRIMARY_TIMEOUT_SECONDS` | `60` | Primary request timeout |
 
 ## License
 
-MIT
+Internal use — see repository root for license terms.

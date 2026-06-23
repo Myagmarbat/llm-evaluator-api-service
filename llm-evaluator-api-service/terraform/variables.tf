@@ -1,105 +1,98 @@
 variable "do_token" {
-  description = "DigitalOcean API PAT (dop_v1_...). If unset, the provider uses DIGITALOCEAN_TOKEN from the environment."
   type        = string
-  sensitive   = true
   default     = null
   nullable    = true
+  sensitive   = true
+  description = "DigitalOcean API token. When null, the provider uses DIGITALOCEAN_TOKEN from the environment."
 }
 
-variable "project_name" {
-  description = "Prefix for DigitalOcean resources."
+variable "inference_api_key" {
   type        = string
-  default     = "llm-evaluator-api-service"
+  default     = null
+  nullable    = true
+  sensitive   = true
+  description = "API key for DigitalOcean Inference. Required when deploying the App Platform service."
 }
 
 variable "environment" {
-  description = "Deployment environment label (e.g. staging, production)."
   type        = string
-  default     = "production"
+  description = "Deployment environment (e.g. dev, staging, prod)."
+  default     = "dev"
+
+  validation {
+    condition     = can(regex("^[a-z0-9-]+$", var.environment))
+    error_message = "environment must contain only lowercase letters, numbers, and hyphens."
+  }
 }
 
 variable "region" {
-  description = "DigitalOcean App Platform region (e.g. nyc, sfo, ams)."
   type        = string
-  default     = "nyc"
-}
-
-variable "registry_region" {
-  description = "DigitalOcean Container Registry region (e.g. nyc3, sfo3)."
-  type        = string
+  description = "DigitalOcean region for the container registry and App Platform."
   default     = "nyc3"
 }
 
-variable "image_repository" {
-  description = "Container image repository name inside DOCR."
+variable "project_name" {
   type        = string
+  description = "Project and container image repository name."
   default     = "llm-evaluator-api-service"
 }
 
 variable "image_tag" {
-  description = "Container image tag deployed by App Platform."
   type        = string
+  description = "Container image tag to deploy."
   default     = "latest"
 }
 
-variable "inference_api_key" {
-  description = "DigitalOcean Serverless Inference model access key (runtime only, not for Terraform auth)."
+variable "instance_size_slug" {
   type        = string
-  sensitive   = true
-  default     = null
-  nullable    = true
+  description = "App Platform instance size for the API service."
+  default     = "basic-xxs"
+}
+
+variable "inference_base_url" {
+  type        = string
+  description = "Base URL for the inference API."
+  default     = "https://inference.do-ai.run"
 }
 
 variable "primary_model" {
-  type    = string
-  default = "meta-llama/Meta-Llama-3.1-8B-Instruct"
+  type        = string
+  description = "Primary LLM model identifier."
+  default     = "meta-llama/Meta-Llama-3.1-8B-Instruct"
 }
 
 variable "candidate_model" {
-  type    = string
-  default = "meta-llama/Meta-Llama-3.1-8B-Instruct"
-}
-
-variable "instance_size_slug" {
-  description = "App Platform instance size."
   type        = string
-  default     = "professional-xs"
-}
-
-variable "min_instances" {
-  description = "Minimum App Platform instances (HA floor)."
-  type        = number
-  default     = 2
-}
-
-variable "max_instances" {
-  description = "Maximum App Platform instances under autoscaling."
-  type        = number
-  default     = 10
+  description = "Candidate LLM model identifier for shadow evaluation."
+  default     = "meta-llama/Meta-Llama-3.1-8B-Instruct"
 }
 
 variable "shadow_queue_max_size" {
-  type    = number
-  default = 100
+  type        = number
+  description = "Maximum number of pending shadow evaluation tasks."
+  default     = 100
 }
 
 variable "shadow_max_workers" {
-  type    = number
-  default = 10
+  type        = number
+  description = "Maximum concurrent shadow evaluation workers per instance."
+  default     = 10
 }
 
 variable "shadow_timeout_seconds" {
-  type    = number
-  default = 30
+  type        = number
+  description = "Timeout in seconds for candidate LLM requests."
+  default     = 30
 }
 
 variable "shadow_routing_percentage" {
-  type    = number
-  default = 100
+  type        = number
+  description = "Percentage of requests routed to shadow evaluation (0-100)."
+  default     = 100
 }
 
-variable "registry_tier" {
-  description = "DOCR subscription tier (starter or basic)."
-  type        = string
-  default     = "basic"
+variable "primary_timeout_seconds" {
+  type        = number
+  description = "Timeout in seconds for primary LLM requests."
+  default     = 60
 }

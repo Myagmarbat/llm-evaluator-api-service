@@ -1,8 +1,6 @@
-import asyncio
 from typing import Any
 from unittest.mock import AsyncMock
 
-import httpx
 import pytest
 from httpx import ASGITransport, AsyncClient
 

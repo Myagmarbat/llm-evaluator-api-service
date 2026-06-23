@@ -18,15 +18,15 @@ test:
 	pytest tests/ -v --cov=app
 
 docker-build:
-	docker build -t shadow-llm-proxy:local .
+	docker build -t llm-evaluator-api-service:local .
 
 docker-run:
 	docker run --rm -p 8000:8000 \
 		-e INFERENCE_API_KEY=$${INFERENCE_API_KEY} \
-		shadow-llm-proxy:local
+		llm-evaluator-api-service:local
 
 tf-init:
-	cd terraform && terraform init -backend=false
+	cd terraform && terraform init -input=false
 
 tf-plan:
 	cd terraform && terraform plan -var="image_tag=latest"

@@ -1,12 +1,6 @@
-# One-time bootstrap: creates a Spaces bucket for Terraform remote state.
-# Apply locally with local state, then configure backend.hcl for the main stack.
-#
-#   cd terraform/bootstrap
-#   terraform init
-#   terraform apply -var="do_token=$DIGITALOCEAN_TOKEN"
-
 terraform {
-  required_version = ">= 1.6.0"
+  required_version = ">= 1.5.0"
+
   required_providers {
     digitalocean = {
       source  = "digitalocean/digitalocean"
@@ -16,18 +10,22 @@ terraform {
 }
 
 variable "do_token" {
-  type      = string
-  sensitive = true
+  type        = string
+  default     = null
+  nullable    = true
+  sensitive   = true
+  description = "DigitalOcean API token. When null, uses DIGITALOCEAN_TOKEN from the environment."
 }
 
 variable "bucket_name" {
-  type    = string
-  default = "shadow-llm-proxy-tfstate"
+  type        = string
+  description = "Globally unique Spaces bucket name for Terraform remote state."
 }
 
 variable "region" {
-  type    = string
-  default = "nyc3"
+  type        = string
+  description = "DigitalOcean region for the Spaces bucket."
+  default     = "nyc3"
 }
 
 provider "digitalocean" {
@@ -41,9 +39,16 @@ resource "digitalocean_spaces_bucket" "tfstate" {
 }
 
 output "bucket_name" {
-  value = digitalocean_spaces_bucket.tfstate.name
+  description = "Spaces bucket name for Terraform remote state."
+  value       = digitalocean_spaces_bucket.tfstate.name
 }
 
-output "endpoint" {
-  value = "https://${var.region}.digitaloceanspaces.com"
+output "bucket_region" {
+  description = "Spaces bucket region."
+  value       = digitalocean_spaces_bucket.tfstate.region
+}
+
+output "bucket_endpoint" {
+  description = "Spaces bucket endpoint URL."
+  value       = digitalocean_spaces_bucket.tfstate.bucket_domain_name
 }

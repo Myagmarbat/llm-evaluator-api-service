@@ -4,8 +4,6 @@ from pydantic import BaseModel, Field
 
 
 class ChatRequest(BaseModel):
-    """OpenAI-compatible chat completion request body."""
-
     model: str | None = None
     messages: list[dict[str, Any]]
     temperature: float | None = None

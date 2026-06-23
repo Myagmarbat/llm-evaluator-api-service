@@ -4,7 +4,6 @@ from unittest.mock import AsyncMock
 import httpx
 import pytest
 
-from app.config import RuntimeConfig
 from tests.conftest import make_chat_response
 
 

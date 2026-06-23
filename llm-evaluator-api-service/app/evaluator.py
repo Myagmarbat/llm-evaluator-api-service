@@ -5,7 +5,6 @@ from app.models import EvaluationResult
 
 
 def extract_message_content(response: dict[str, Any]) -> str | None:
-    """Extract assistant message content from a chat completion response."""
     try:
         choices = response.get("choices")
         if not choices:
@@ -20,7 +19,6 @@ def extract_message_content(response: dict[str, Any]) -> str | None:
 
 
 def parse_action_from_content(content: str | None) -> tuple[bool, str | None]:
-    """Parse JSON content and extract the 'action' key."""
     if content is None:
         return False, None
     try:
@@ -39,11 +37,6 @@ def evaluate_responses(
     primary_response: dict[str, Any],
     candidate_response: dict[str, Any],
 ) -> EvaluationResult:
-    """
-    Deterministic heuristic evaluation:
-    1. Both models must return valid, parseable JSON in message content.
-    2. The 'action' key from each payload must match exactly.
-    """
     primary_content = extract_message_content(primary_response)
     candidate_content = extract_message_content(candidate_response)
 

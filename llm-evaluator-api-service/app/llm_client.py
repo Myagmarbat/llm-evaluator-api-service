@@ -6,8 +6,6 @@ from app.config import Settings
 
 
 class LLMClient:
-    """HTTP client for DigitalOcean Serverless Inference API."""
-
     def __init__(self, settings: Settings, client: httpx.AsyncClient | None = None) -> None:
         self._settings = settings
         self._client = client

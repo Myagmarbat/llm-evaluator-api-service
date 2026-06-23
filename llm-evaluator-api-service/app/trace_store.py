@@ -20,12 +20,9 @@ CREATE TABLE IF NOT EXISTS mismatch_traces (
 
 
 class TraceStore:
-    """Asynchronous SQLite store for mismatched shadow evaluations."""
-
     def __init__(self, db_path: str) -> None:
         self._db_path = db_path
         self._initialized = False
-        self._init_lock = None
 
     async def initialize(self) -> None:
         if self._initialized:

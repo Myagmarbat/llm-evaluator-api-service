@@ -11,6 +11,10 @@ from app.trace_store import TraceStore
 from tests.conftest import make_chat_response
 
 
+async def slow_completion(*args, **kwargs):
+    await asyncio.sleep(10)
+
+
 @pytest.fixture
 def small_queue_settings(tmp_path) -> Settings:
     return Settings(
@@ -30,9 +34,6 @@ class TestShadowQueueLoadShedding:
         runtime_config = RuntimeConfig(small_queue_settings)
         trace_store = TraceStore(small_queue_settings.trace_db_path)
 
-        async def slow_completion(*_args, **_kwargs):
-            await asyncio.sleep(10)
-
         slow_client = AsyncMock()
         slow_client.chat_completion = AsyncMock(side_effect=slow_completion)
 
@@ -44,13 +45,10 @@ class TestShadowQueueLoadShedding:
         payload = {"messages": [{"role": "user", "content": "hi"}]}
         primary = make_chat_response("search")
 
-        # Fill queue (maxsize=2) plus one in-flight worker
         assert queue.try_submit(payload, primary) is True
         assert queue.try_submit(payload, primary) is True
 
-        # Third should be dropped immediately
         dropped_before = metrics.snapshot()["shadow_dropped"]
-        # May succeed if worker hasn't picked up yet; keep submitting until drop
         for _ in range(5):
             queue.try_submit(payload, primary)
 

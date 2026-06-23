@@ -1,5 +1,4 @@
 import asyncio
-import json
 import logging
 import random
 from dataclasses import dataclass
@@ -23,14 +22,6 @@ class ShadowTask:
 
 
 class ShadowQueue:
-    """
-    Bounded background shadow evaluation pool.
-
-    Under load, tasks are dropped when the queue is full (load shedding).
-    Worker concurrency is capped via a semaphore so in-flight evaluations
-    cannot grow without bound.
-    """
-
     def __init__(
         self,
         settings: Settings,
@@ -74,10 +65,6 @@ class ShadowQueue:
         request_payload: dict[str, Any],
         primary_response: dict[str, Any],
     ) -> bool:
-        """
-        Non-blocking submit. Returns False if load is shed (queue full or
-        routing percentage excludes this request).
-        """
         percentage = self._runtime_config.shadow_routing_percentage
         if percentage <= 0:
             return False

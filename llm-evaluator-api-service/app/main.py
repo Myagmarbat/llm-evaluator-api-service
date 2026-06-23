@@ -1,12 +1,11 @@
 import logging
 from contextlib import asynccontextmanager
-from typing import Any
 
 import httpx
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
 
-from app.config import RuntimeConfig, Settings, get_runtime_config, get_settings
+from app.config import RuntimeConfig, Settings, get_settings
 from app.llm_client import LLMClient
 from app.metrics import MetricsCollector
 from app.models import ChatRequest, ConfigResponse, ConfigUpdateRequest, MetricsResponse
@@ -66,7 +65,7 @@ def create_app(
             await client.__aexit__(None, None, None)
 
     app = FastAPI(
-        title="Shadow LLM Proxy",
+        title="LLM Evaluator API Service",
         description="Synchronous primary LLM proxy with asynchronous candidate shadow evaluation",
         version="1.0.0",
         lifespan=lifespan,
@@ -106,9 +105,7 @@ def create_app(
             logger.exception("Primary LLM request failed")
             raise HTTPException(status_code=502, detail="Primary LLM request failed") from exc
 
-        # Fire-and-forget shadow evaluation; never blocks the primary response.
         state.shadow_queue.try_submit(payload, primary_response)
-
         return JSONResponse(content=primary_response)
 
     @app.get("/metrics", response_model=MetricsResponse)

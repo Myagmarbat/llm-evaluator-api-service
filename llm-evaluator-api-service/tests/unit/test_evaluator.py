@@ -1,5 +1,3 @@
-import pytest
-
 from app.evaluator import evaluate_responses, extract_message_content, parse_action_from_content
 from app.models import EvaluationResult
 

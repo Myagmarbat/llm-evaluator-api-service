@@ -6,7 +6,6 @@ __pycache__/
 htmlcov/
 .git/
 .github/
-app/.github/
 terraform/
 tests/
 *.db
