@@ -126,7 +126,7 @@ Live tests are marked with `@pytest.mark.live` and excluded from CI/CD unit test
 
 App URL: **https://llm-eval-api-dev-8d2f6.ondigitalocean.app**
 
-Production uses a separate stack (`ENVIRONMENT=production`): registry `llmeval-production`, app `llm-eval-api-production`. Terraform state is stored per environment in `terraform/state/{environment}.tfstate`.
+Production uses a separate App Platform stack (`ENVIRONMENT=production`): app `llm-eval-api-production`, sharing the account DOCR registry `llmeval-dev` (DigitalOcean allows one registry per account). Terraform state is stored per environment in `terraform/state/{environment}.tfstate`.
 
 ```bash
 APP_URL=https://llm-eval-api-dev-8d2f6.ondigitalocean.app

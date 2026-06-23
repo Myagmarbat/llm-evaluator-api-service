@@ -10,12 +10,12 @@ output "app_id" {
 
 output "registry_endpoint" {
   description = "Container registry endpoint for docker login and push."
-  value       = digitalocean_container_registry.main.endpoint
+  value       = local.registry_endpoint
 }
 
 output "registry_name" {
-  description = "Container registry name."
-  value       = digitalocean_container_registry.main.name
+  description = "Shared container registry name."
+  value       = local.registry_name
 }
 
 output "image_reference" {

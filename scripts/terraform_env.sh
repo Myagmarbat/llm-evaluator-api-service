@@ -6,9 +6,10 @@ terraform_env_init() {
   export ENVIRONMENT
   export TF_VAR_environment="${ENVIRONMENT}"
 
-  REGISTRY_NAME="${REGISTRY_NAME:-llmeval-${ENVIRONMENT}}"
+  REGISTRY_NAME="${REGISTRY_NAME:-llmeval-dev}"
   export REGISTRY_NAME
-  export REGISTRY_REPO="${REGISTRY_REPO:-${REGISTRY_NAME}/llm-evaluator-api-service}"
+  export IMAGE_REPOSITORY="${IMAGE_REPOSITORY:-llm-evaluator-api-service}"
+  export REGISTRY_REPO="${REGISTRY_REPO:-${REGISTRY_NAME}/${IMAGE_REPOSITORY}}"
 
   STATE_DIR="${TERRAFORM_DIR}/state"
   mkdir -p "${STATE_DIR}"
@@ -33,7 +34,7 @@ terraform_env_init() {
     fi
   }
 
-  echo "==> Environment: ${ENVIRONMENT} | registry: ${REGISTRY_NAME} | state: state/${ENVIRONMENT}.tfstate" >&2
+  echo "==> Environment: ${ENVIRONMENT} | registry: ${REGISTRY_NAME} | repo: ${IMAGE_REPOSITORY} | state: state/${ENVIRONMENT}.tfstate" >&2
 }
 
 registry_has_tag() {

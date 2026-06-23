@@ -14,6 +14,12 @@ variable "inference_api_key" {
   description = "API key for DigitalOcean Inference. Required when deploying the App Platform service."
 }
 
+variable "registry_name" {
+  type        = string
+  description = "Shared DOCR registry name. DigitalOcean allows one registry per account."
+  default     = "llmeval-dev"
+}
+
 variable "environment" {
   type        = string
   description = "Deployment environment (e.g. dev, staging, prod)."

@@ -102,24 +102,33 @@ import_existing_app() {
   terraform -chdir="${TERRAFORM_DIR}" import ${VAR_FILE_ARGS} digitalocean_app.main "${app_id}" || true
 }
 
-echo "==> Applying container registry..."
-import_if_missing digitalocean_container_registry.main "${REGISTRY_NAME}"
-import_if_missing digitalocean_container_registry_docker_credentials.main "${REGISTRY_NAME}"
-# shellcheck disable=SC2086
-terraform -chdir="${TERRAFORM_DIR}" apply \
-  ${VAR_FILE_ARGS} \
-  -target=digitalocean_container_registry.main \
-  -target=digitalocean_container_registry_docker_credentials.main \
-  -auto-approve
+echo "==> Ensuring container registry access..."
+if [[ "${ENVIRONMENT}" == "dev" ]]; then
+  import_if_missing "digitalocean_container_registry.main[0]" "${REGISTRY_NAME}"
+  # shellcheck disable=SC2086
+  terraform -chdir="${TERRAFORM_DIR}" apply \
+    ${VAR_FILE_ARGS} \
+    -target=digitalocean_container_registry.main[0] \
+    -target=digitalocean_container_registry_docker_credentials.main \
+    -auto-approve
+else
+  echo "==> Using shared registry ${REGISTRY_NAME} (managed by dev)"
+  import_if_missing digitalocean_container_registry_docker_credentials.main "${REGISTRY_NAME}"
+  # shellcheck disable=SC2086
+  terraform -chdir="${TERRAFORM_DIR}" apply \
+    ${VAR_FILE_ARGS} \
+    -target=digitalocean_container_registry_docker_credentials.main \
+    -auto-approve
+fi
 
 REGISTRY_ENDPOINT="$(terraform -chdir="${TERRAFORM_DIR}" output -raw registry_endpoint)"
-IMAGE="${REGISTRY_ENDPOINT}/${PROJECT_NAME}:${IMAGE_TAG}"
+IMAGE="${REGISTRY_ENDPOINT}/${IMAGE_REPOSITORY}:${IMAGE_TAG}"
 
 echo "==> Building and pushing ${IMAGE}..."
 doctl registry login
-docker build -t "${IMAGE}" -t "${REGISTRY_ENDPOINT}/${PROJECT_NAME}:latest" "${PROJECT_ROOT}"
+docker build -t "${IMAGE}" -t "${REGISTRY_ENDPOINT}/${IMAGE_REPOSITORY}:latest" "${PROJECT_ROOT}"
 docker push "${IMAGE}"
-docker push "${REGISTRY_ENDPOINT}/${PROJECT_NAME}:latest"
+docker push "${REGISTRY_ENDPOINT}/${IMAGE_REPOSITORY}:latest"
 
 import_existing_app
 
