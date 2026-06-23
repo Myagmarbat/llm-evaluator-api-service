@@ -1,10 +1,10 @@
 # Copy to terraform.tfvars (never commit secrets)
 
-project_name  = "shadow-llm-proxy"
-environment   = "production"
-region        = "nyc"
+project_name    = "llm-evaluator-api-service"
+environment     = "production"
+region          = "nyc"
 registry_region = "nyc3"
-image_tag     = "latest"
+image_tag       = "latest"
 
 primary_model   = "meta-llama/Meta-Llama-3.1-8B-Instruct"
 candidate_model = "meta-llama/Meta-Llama-3.1-8B-Instruct"
@@ -13,6 +13,14 @@ min_instances      = 2
 max_instances      = 10
 instance_size_slug = "professional-xs"
 
-# Set via environment for CI/CD — do not commit:
-# do_token          = "dop_v1_..."
-# inference_api_key = "dop_v1_..."
+# ── Authentication (use environment variables, do not commit) ──────────────
+#
+# Terraform API auth (creates registry + App Platform):
+#   export DIGITALOCEAN_TOKEN="dop_v1_..."        # API → Tokens (read/write)
+#   export TF_VAR_do_token="$DIGITALOCEAN_TOKEN"
+#
+# Runtime inference key (injected into App Platform):
+#   export INFERENCE_API_KEY="..."                  # Inference → Model Access Keys
+#   export TF_VAR_inference_api_key="$INFERENCE_API_KEY"
+#
+# Common mistake: using INFERENCE_API_KEY as DIGITALOCEAN_TOKEN causes 401 errors.

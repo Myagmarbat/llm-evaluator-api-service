@@ -1,5 +1,7 @@
 locals {
-  app_name = "${var.project_name}-${var.environment}"
+  # App Platform app names must be 2–32 characters.
+  short_name = "llm-eval-api-${var.environment}"
+  app_name   = local.short_name
 
   runtime_env = {
     INFERENCE_API_KEY           = var.inference_api_key
@@ -15,7 +17,7 @@ locals {
 }
 
 resource "digitalocean_container_registry" "this" {
-  name                   = replace("${var.project_name}-${var.environment}", "_", "-")
+  name                   = local.short_name
   subscription_tier_slug = var.registry_tier
   region                 = var.registry_region
 }
@@ -26,6 +28,13 @@ resource "digitalocean_container_registry_docker_credentials" "this" {
 }
 
 resource "digitalocean_app" "this" {
+  lifecycle {
+    precondition {
+      condition     = var.inference_api_key != null && trimspace(var.inference_api_key) != ""
+      error_message = "Set INFERENCE_API_KEY (model access key) via TF_VAR_inference_api_key before deploying the app."
+    }
+  }
+
   spec {
     name   = local.app_name
     region = var.region

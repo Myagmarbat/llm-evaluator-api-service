@@ -1,13 +1,15 @@
 variable "do_token" {
-  description = "DigitalOcean API token with read/write access."
+  description = "DigitalOcean API PAT (dop_v1_...). If unset, the provider uses DIGITALOCEAN_TOKEN from the environment."
   type        = string
   sensitive   = true
+  default     = null
+  nullable    = true
 }
 
 variable "project_name" {
   description = "Prefix for DigitalOcean resources."
   type        = string
-  default     = "shadow-llm-proxy"
+  default     = "llm-evaluator-api-service"
 }
 
 variable "environment" {
@@ -31,7 +33,7 @@ variable "registry_region" {
 variable "image_repository" {
   description = "Container image repository name inside DOCR."
   type        = string
-  default     = "shadow-llm-proxy"
+  default     = "llm-evaluator-api-service"
 }
 
 variable "image_tag" {
@@ -41,9 +43,11 @@ variable "image_tag" {
 }
 
 variable "inference_api_key" {
-  description = "DigitalOcean Serverless Inference API key."
+  description = "DigitalOcean Serverless Inference model access key (runtime only, not for Terraform auth)."
   type        = string
   sensitive   = true
+  default     = null
+  nullable    = true
 }
 
 variable "primary_model" {

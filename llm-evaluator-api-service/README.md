@@ -222,8 +222,10 @@ GitHub Actions runs on every push and pull request:
 
 | Workflow | Trigger | Jobs |
 |----------|---------|------|
-| [`ci.yml`](../.github/workflows/ci.yml) | Push / PR | Tests (3.11 & 3.12), Terraform validate, Docker build |
-| [`cd.yml`](../.github/workflows/cd.yml) | Push to `main` / manual | Test → build image → Terraform deploy |
+| [`ci.yml`](app/.github/workflows/ci.yml) | Push / PR | Tests (3.11 & 3.12), Terraform validate, Docker build |
+| [`cd.yml`](app/.github/workflows/cd.yml) | Push to `main` / manual | Test → build image → Terraform deploy |
+
+Workflow definitions live in `app/.github/workflows/`. Thin trigger wrappers at the repo root (`.github/workflows/`) call them — required by GitHub Actions.
 
 ## DigitalOcean deployment
 
@@ -329,15 +331,18 @@ This service lives at `llm-evaluator-api-service/` in the monorepo:
 
 ```
 llm-evaluator-api-service/
-  app/                  # FastAPI application
-  terraform/            # DigitalOcean infrastructure (DOCR + App Platform)
-  terraform/bootstrap/  # One-time Spaces bucket for remote state
-  tests/
-  Dockerfile
-  Makefile
+├── app/
+│   ├── .github/workflows/  # CI/CD workflow definitions
+│   ├── main.py
+│   └── ...
+├── terraform/            # DigitalOcean infrastructure (DOCR + App Platform)
+│   └── bootstrap/        # One-time Spaces bucket for remote state
+├── tests/
+├── Dockerfile
+└── Makefile
 ```
 
-CI/CD workflows are at the repo root in `.github/workflows/` (required by GitHub Actions).
+Root `.github/workflows/` contains thin triggers that call these workflows (GitHub requirement).
 
 ## License
 

@@ -8,6 +8,9 @@ terraform {
     }
   }
 
-  # Remote state (recommended for CI/CD). Configure via backend.hcl — see README.
-  backend "s3" {}
+  # Local state for development. CI/CD overrides with Spaces via:
+  #   terraform init -backend-config=backend.hcl
+  backend "local" {
+    path = "terraform.tfstate"
+  }
 }

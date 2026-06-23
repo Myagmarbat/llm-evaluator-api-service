@@ -1,10 +1,10 @@
-# DigitalOcean Spaces (S3-compatible) remote state backend.
-# Copy to backend.hcl and run: terraform init -backend-config=backend.hcl
+# DigitalOcean Spaces (S3-compatible) remote state backend for CI/CD.
+# Copy to backend.hcl and run: terraform init -reconfigure -backend-config=backend.hcl
 #
 # Create the bucket once (doctl or control panel) before first init.
 
 bucket                      = "your-terraform-state-bucket"
-key                         = "shadow-llm-proxy/terraform.tfstate"
+key                         = "llm-evaluator-api-service/terraform.tfstate"
 region                      = "us-east-1"
 endpoints                   = { s3 = "https://nyc3.digitaloceanspaces.com" }
 skip_credentials_validation = true
