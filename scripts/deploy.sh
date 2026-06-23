@@ -5,9 +5,19 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 TERRAFORM_DIR="${PROJECT_ROOT}/terraform"
 
+# shellcheck disable=SC1091
+source "${PROJECT_ROOT}/scripts/terraform_env.sh"
+
 ENVIRONMENT="${ENVIRONMENT:-dev}"
 IMAGE_TAG="${IMAGE_TAG:-latest}"
 PROJECT_NAME="${PROJECT_NAME:-llm-evaluator-api-service}"
+
+if [[ -f "${PROJECT_ROOT}/.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source "${PROJECT_ROOT}/.env"
+  set +a
+fi
 
 if [[ -z "${DIGITALOCEAN_TOKEN:-}" ]]; then
   echo "error: DIGITALOCEAN_TOKEN is required" >&2
@@ -49,36 +59,39 @@ if ! doctl account get >/dev/null 2>&1; then
 fi
 
 export TF_VAR_do_token="${DIGITALOCEAN_TOKEN}"
-export TF_VAR_environment="${ENVIRONMENT}"
+export TF_VAR_inference_api_key="${INFERENCE_API_KEY}"
 export TF_VAR_image_tag="${IMAGE_TAG}"
 
-if [[ -n "${INFERENCE_API_KEY:-}" ]]; then
-  export TF_VAR_inference_api_key="${INFERENCE_API_KEY}"
-fi
+terraform_env_init
 
-cd "${TERRAFORM_DIR}"
-terraform init -input=false >/dev/null
+terraform_var_file_args() {
+  local tfvars="${TERRAFORM_DIR}/environments/${ENVIRONMENT}.tfvars"
+  if [[ -f "${tfvars}" ]]; then
+    echo "-var-file=environments/${ENVIRONMENT}.tfvars"
+  fi
+}
 
-REGISTRY_TARGET_NAME="llmeval-${ENVIRONMENT}"
+VAR_FILE_ARGS="$(terraform_var_file_args)"
 
 import_if_missing() {
   local resource="$1"
   local id="$2"
-  if ! terraform state show "${resource}" >/dev/null 2>&1; then
-    terraform import "${resource}" "${id}" >/dev/null 2>&1 || true
+  if ! terraform -chdir="${TERRAFORM_DIR}" state show "${resource}" >/dev/null 2>&1; then
+    terraform -chdir="${TERRAFORM_DIR}" import "${resource}" "${id}" >/dev/null 2>&1 || true
   fi
 }
 
 echo "==> Applying container registry..."
-import_if_missing digitalocean_container_registry.main "${REGISTRY_TARGET_NAME}"
-import_if_missing digitalocean_container_registry_docker_credentials.main "${REGISTRY_TARGET_NAME}"
-terraform apply \
+import_if_missing digitalocean_container_registry.main "${REGISTRY_NAME}"
+import_if_missing digitalocean_container_registry_docker_credentials.main "${REGISTRY_NAME}"
+# shellcheck disable=SC2086
+terraform -chdir="${TERRAFORM_DIR}" apply \
+  ${VAR_FILE_ARGS} \
   -target=digitalocean_container_registry.main \
   -target=digitalocean_container_registry_docker_credentials.main \
   -auto-approve
 
-REGISTRY_ENDPOINT="$(terraform output -raw registry_endpoint)"
-REGISTRY_NAME="$(terraform output -raw registry_name)"
+REGISTRY_ENDPOINT="$(terraform -chdir="${TERRAFORM_DIR}" output -raw registry_endpoint)"
 IMAGE="${REGISTRY_ENDPOINT}/${PROJECT_NAME}:${IMAGE_TAG}"
 
 echo "==> Building and pushing ${IMAGE}..."
@@ -88,7 +101,8 @@ docker push "${IMAGE}"
 docker push "${REGISTRY_ENDPOINT}/${PROJECT_NAME}:latest"
 
 echo "==> Applying App Platform service..."
-terraform apply -auto-approve
+# shellcheck disable=SC2086
+terraform -chdir="${TERRAFORM_DIR}" apply ${VAR_FILE_ARGS} -auto-approve
 
-APP_URL="$(terraform output -raw app_url)"
-echo "==> Deployed successfully: ${APP_URL}"
+APP_URL="$(terraform -chdir="${TERRAFORM_DIR}" output -raw app_url)"
+echo "==> Deployed successfully (${ENVIRONMENT}): ${APP_URL}"

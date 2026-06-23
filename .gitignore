@@ -17,6 +17,7 @@ build/
 **/.terraform/
 **/terraform.tfstate
 **/terraform.tfstate.backup
-**/terraform/terraform.tfvars
+**/terraform/environments/*.tfvars
+**/terraform/state/
 **/terraform/backend.hcl
 **/crash.log

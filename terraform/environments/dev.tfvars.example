@@ -1,0 +1,10 @@
+# Copy to terraform/environments/dev.tfvars (gitignored) or use defaults.
+
+environment = "dev"
+region      = "nyc3"
+image_tag   = "latest"
+
+instance_size_slug = "apps-d-1vcpu-0.5gb"
+
+primary_model   = "llama3.3-70b-instruct"
+candidate_model = "mistral-3-14B"

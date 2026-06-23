@@ -52,8 +52,12 @@ flowchart TB
 │   ├── bootstrap/          # Spaces bucket for remote state
 │   └── ...
 ├── scripts/
-│   └── deploy.sh           # Registry → push → app deploy
-├── .github/workflows/      # CI/CD
+│   ├── deploy.sh           # Registry → push → app deploy
+│   ├── tf.sh               # Terraform wrapper (per-environment state)
+│   └── terraform_env.sh    # ENVIRONMENT, registry, state helpers
+├── terraform/
+│   ├── state/              # Per-environment local state (gitignored)
+│   └── environments/       # Optional *.tfvars per environment
 ├── Dockerfile
 ├── Makefile
 └── README.md
@@ -96,6 +100,18 @@ make docker-build && make docker-run
 make test
 ```
 
+Unit and mocked integration tests run by default. Live tests hit a deployed App Platform URL:
+
+```bash
+export INTEGRATION_APP_URL=https://llm-eval-api-dev-8d2f6.ondigitalocean.app
+make test-live
+
+# Optional: exercise POST /v1/chat (calls inference API)
+RUN_LIVE_CHAT=1 make test-live
+```
+
+Live tests are marked with `@pytest.mark.live` and excluded from CI/CD unit test jobs.
+
 ## API Endpoints
 
 | Method | Path        | Description                              |
@@ -109,6 +125,8 @@ make test
 ### Live deployment (dev)
 
 App URL: **https://llm-eval-api-dev-8d2f6.ondigitalocean.app**
+
+Production uses a separate stack (`ENVIRONMENT=production`): registry `llmeval-production`, app `llm-eval-api-production`. Terraform state is stored per environment in `terraform/state/{environment}.tfstate`.
 
 ```bash
 APP_URL=https://llm-eval-api-dev-8d2f6.ondigitalocean.app
@@ -204,8 +222,20 @@ This heuristic targets agent-style outputs (e.g. `{"action": "buy", ...}`) and i
 
 `.github/workflows/ci.yml` runs on every push and pull request:
 
-- **CI** — Python 3.11/3.12 tests with coverage, Terraform validate, Docker build
-- **CD** — deploy on push to `main` or manual `workflow_dispatch`
+- **CI** — Python 3.11/3.12 tests with coverage (excludes `@pytest.mark.live`), Terraform validate, Docker build
+- **CD** — deploy dev → live integration tests → deploy production (with GitHub environment approval) → production integration tests
+
+**GitHub environments:** Configure `dev` and `production` under **Settings → Environments**. Add required reviewers on `production` to gate production deploys.
+
+**CD flow on push to `main`:**
+
+1. Unit tests (`pytest -m "not live"`)
+2. Deploy to **dev** (`ENVIRONMENT=dev`)
+3. Live integration tests against dev URL
+4. Deploy to **production** (`ENVIRONMENT=production`)
+5. Live integration tests against production URL
+
+Manual deploy: **Actions → CD → Run workflow** — choose `dev`, `production`, or `both`.
 
 **Required GitHub secrets:**
 
@@ -298,7 +328,12 @@ export ENVIRONMENT=dev          # optional, default: dev
 export IMAGE_TAG=latest         # optional, default: latest
 
 ./scripts/deploy.sh
+
+# Production (separate registry, app, and Terraform state)
+ENVIRONMENT=production ./scripts/deploy.sh
 ```
+
+Optional per-environment overrides: copy `terraform/environments/production.tfvars.example` to `terraform/environments/production.tfvars` (gitignored).
 
 The script:
 

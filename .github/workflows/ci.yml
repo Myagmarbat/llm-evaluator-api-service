@@ -31,7 +31,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Run tests with coverage
-        run: pytest tests/ -v --cov=app --cov-report=term-missing
+        run: pytest tests/ -m "not live" -v --cov=app --cov-report=term-missing
 
   terraform:
     runs-on: ubuntu-latest

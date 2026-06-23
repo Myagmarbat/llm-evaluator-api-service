@@ -1,0 +1,24 @@
+# Copy to terraform/environments/production.tfvars (gitignored) or export TF_VAR_* vars.
+#
+# Deploy:
+#   ENVIRONMENT=production ./scripts/deploy.sh
+#   ENVIRONMENT=production make tf-apply
+
+environment = "production"
+region      = "nyc3"
+
+# Dedicated CPU tier required for CPU autoscaling (2-10 instances).
+instance_size_slug = "apps-d-1vcpu-0.5gb"
+
+autoscaling_min_instances = 2
+autoscaling_max_instances = 10
+autoscaling_cpu_percent   = 80
+
+primary_model   = "llama3.3-70b-instruct"
+candidate_model = "mistral-3-14B"
+
+shadow_queue_max_size     = 100
+shadow_max_workers        = 10
+shadow_routing_percentage = 100
+
+# inference_api_key = "your-inference-api-key"
