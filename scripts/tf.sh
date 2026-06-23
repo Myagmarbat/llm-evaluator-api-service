@@ -2,6 +2,8 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+TERRAFORM_DIR="${ROOT}/terraform"
+REGISTRY_REPO="${REGISTRY_REPO:-llm-evaluator-api-service}"
 
 if [[ -f "${ROOT}/.env" ]]; then
   set -a
@@ -32,15 +34,83 @@ if ! grep -q 'cpu_autoscaling_enabled' "${ROOT}/terraform/main.tf" 2>/dev/null; 
   exit 1
 fi
 
-if [[ -z "${TF_VAR_image_tag:-}" && -z "${IMAGE_TAG:-}" ]]; then
-  if git -C "${ROOT}" rev-parse HEAD >/dev/null 2>&1; then
-    export TF_VAR_image_tag="$(git -C "${ROOT}" rev-parse HEAD)"
-  else
-    export TF_VAR_image_tag="latest"
+current_state_image_tag() {
+  if [[ ! -d "${TERRAFORM_DIR}" ]]; then
+    return 0
   fi
-else
-  export TF_VAR_image_tag="${IMAGE_TAG:-${TF_VAR_image_tag}}"
+  (
+    cd "${TERRAFORM_DIR}"
+    if ! terraform state show digitalocean_app.main >/dev/null 2>&1; then
+      return 0
+    fi
+    terraform state show digitalocean_app.main | sed -n 's/^[[:space:]]*tag[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' | head -1
+  )
+}
+
+registry_has_tag() {
+  local tag="$1"
+  doctl registry repository list-tags "${REGISTRY_REPO}" --no-header 2>/dev/null | awk '{print $1}' | grep -Fxq "${tag}"
+}
+
+list_registry_tags() {
+  doctl registry repository list-tags "${REGISTRY_REPO}" --no-header 2>/dev/null | awk '{print $1}' | head -10
+}
+
+resolve_image_tag() {
+  if [[ -n "${IMAGE_TAG:-}" ]]; then
+    echo "${IMAGE_TAG}"
+    return
+  fi
+
+  local state_tag
+  state_tag="$(current_state_image_tag || true)"
+  if [[ -n "${state_tag}" ]] && registry_has_tag "${state_tag}"; then
+    echo "${state_tag}"
+    return
+  fi
+  if [[ -n "${state_tag}" ]]; then
+    echo "warning: state tag '${state_tag}' is not in DOCR; selecting a published tag instead" >&2
+  fi
+
+  if [[ -n "${TF_VAR_image_tag:-}" ]] && registry_has_tag "${TF_VAR_image_tag}"; then
+    echo "${TF_VAR_image_tag}"
+    return
+  fi
+
+  if registry_has_tag "latest"; then
+    echo "latest"
+    return
+  fi
+
+  local published_tag
+  published_tag="$(list_registry_tags | head -1)"
+  if [[ -n "${published_tag}" ]]; then
+    echo "${published_tag}"
+    return
+  fi
+
+  echo ""
+}
+
+TF_CMD="${1:-}"
+export TF_VAR_image_tag="$(resolve_image_tag)"
+
+if [[ -z "${TF_VAR_image_tag}" ]]; then
+  echo "error: could not determine image tag" >&2
+  echo "hint: run ./scripts/deploy.sh first, or set IMAGE_TAG to an existing DOCR tag" >&2
+  exit 1
 fi
 
-cd "${ROOT}/terraform"
+if [[ "${TF_CMD}" == "apply" || "${TF_CMD}" == "plan" ]]; then
+  if ! registry_has_tag "${TF_VAR_image_tag}"; then
+    echo "error: image tag '${TF_VAR_image_tag}' not found in DOCR (${REGISTRY_REPO})" >&2
+    echo "hint: run ./scripts/deploy.sh to build and push the current commit" >&2
+    echo "hint: or set IMAGE_TAG to an existing tag, for example:" >&2
+    list_registry_tags | sed 's/^/  - /' >&2
+    exit 1
+  fi
+  echo "==> Using image tag: ${TF_VAR_image_tag}" >&2
+fi
+
+cd "${TERRAFORM_DIR}"
 exec terraform "$@"

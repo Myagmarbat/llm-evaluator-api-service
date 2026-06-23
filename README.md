@@ -233,6 +233,18 @@ make tf-apply
 
 If you intentionally use `basic-xxs`, the current config disables CPU autoscaling automatically — but you must be on the latest Terraform files.
 
+**`Image tag or digest not found`**
+
+Terraform is pointing at a container tag that has not been pushed to DOCR yet. `make tf-apply` keeps the currently deployed tag unless you set `IMAGE_TAG`.
+
+```bash
+# Build, push, and deploy the current commit
+./scripts/deploy.sh
+
+# Or apply using an existing registry tag
+IMAGE_TAG=latest make tf-apply
+```
+
 ### Authentication
 
 Provide credentials via environment variables (recommended):
