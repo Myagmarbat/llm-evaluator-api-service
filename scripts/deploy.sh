@@ -142,10 +142,15 @@ import_if_missing digitalocean_container_registry_docker_credentials.main "${REG
 # shellcheck disable=SC2086
 terraform -chdir="${TERRAFORM_DIR}" apply \
   ${VAR_FILE_ARGS} \
+  -target=data.digitalocean_container_registry.main \
   -target=digitalocean_container_registry_docker_credentials.main \
   -auto-approve
 
-REGISTRY_ENDPOINT="$(terraform -chdir="${TERRAFORM_DIR}" output -raw registry_endpoint)"
+REGISTRY_ENDPOINT="$(resolve_registry_endpoint)"
+if [[ ! "${REGISTRY_ENDPOINT}" =~ ^registry\.digitalocean\.com/[^[:space:]]+$ ]]; then
+  echo "error: could not resolve registry endpoint (got: ${REGISTRY_ENDPOINT})" >&2
+  exit 1
+fi
 IMAGE="${REGISTRY_ENDPOINT}/${IMAGE_REPOSITORY}:${IMAGE_TAG}"
 
 echo "==> Building and pushing ${IMAGE}..."
@@ -160,5 +165,9 @@ echo "==> Applying App Platform service..."
 # shellcheck disable=SC2086
 terraform -chdir="${TERRAFORM_DIR}" apply ${VAR_FILE_ARGS} -auto-approve
 
-APP_URL="$(terraform -chdir="${TERRAFORM_DIR}" output -raw app_url)"
+APP_URL="$(resolve_app_url || true)"
+if [[ ! "${APP_URL}" =~ ^https:// ]]; then
+  echo "error: could not resolve app URL for ${ENVIRONMENT}" >&2
+  exit 1
+fi
 echo "==> Deployed successfully (${ENVIRONMENT}): ${APP_URL}"

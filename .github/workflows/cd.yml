@@ -103,7 +103,10 @@ jobs:
 
       - name: Save dev app URL
         id: dev_url
-        run: echo "url=$(terraform -chdir=terraform output -raw app_url)" >> "$GITHUB_OUTPUT"
+        run: |
+          url="$(doctl apps list --format Spec.Name,DefaultIngress --no-header \
+            | awk '$1 == "llm-eval-api-dev" { print $2; exit }')"
+          echo "url=${url}" >> "$GITHUB_OUTPUT"
 
   integration-dev:
     runs-on: ubuntu-latest
@@ -173,7 +176,10 @@ jobs:
 
       - name: Save production app URL
         id: prod_url
-        run: echo "url=$(terraform -chdir=terraform output -raw app_url)" >> "$GITHUB_OUTPUT"
+        run: |
+          url="$(doctl apps list --format Spec.Name,DefaultIngress --no-header \
+            | awk '$1 == "llm-eval-api-production" { print $2; exit }')"
+          echo "url=${url}" >> "$GITHUB_OUTPUT"
 
   integration-production:
     runs-on: ubuntu-latest
