@@ -29,10 +29,10 @@ tf-init:
 	cd terraform && terraform init -input=false
 
 tf-plan:
-	./scripts/tf.sh plan -var="image_tag=$${IMAGE_TAG:-latest}"
+	./scripts/tf.sh plan
 
 tf-apply:
-	./scripts/tf.sh apply -var="image_tag=$${IMAGE_TAG:-latest}"
+	./scripts/tf.sh apply
 
 tf-destroy:
 	./scripts/tf.sh destroy

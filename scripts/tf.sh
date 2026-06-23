@@ -26,5 +26,15 @@ if [[ -z "${TF_VAR_do_token}" ]]; then
   exit 1
 fi
 
+if [[ -z "${TF_VAR_image_tag:-}" && -z "${IMAGE_TAG:-}" ]]; then
+  if git -C "${ROOT}" rev-parse HEAD >/dev/null 2>&1; then
+    export TF_VAR_image_tag="$(git -C "${ROOT}" rev-parse HEAD)"
+  else
+    export TF_VAR_image_tag="latest"
+  fi
+else
+  export TF_VAR_image_tag="${IMAGE_TAG:-${TF_VAR_image_tag}}"
+fi
+
 cd "${ROOT}/terraform"
 exec terraform "$@"

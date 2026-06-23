@@ -83,8 +83,9 @@ IMAGE="${REGISTRY_ENDPOINT}/${PROJECT_NAME}:${IMAGE_TAG}"
 
 echo "==> Building and pushing ${IMAGE}..."
 doctl registry login
-docker build -t "${IMAGE}" "${PROJECT_ROOT}"
+docker build -t "${IMAGE}" -t "${REGISTRY_ENDPOINT}/${PROJECT_NAME}:latest" "${PROJECT_ROOT}"
 docker push "${IMAGE}"
+docker push "${REGISTRY_ENDPOINT}/${PROJECT_NAME}:latest"
 
 echo "==> Applying App Platform service..."
 terraform apply -auto-approve
