@@ -122,13 +122,17 @@ Live tests are marked with `@pytest.mark.live` and excluded from CI/CD unit test
 | PUT    | `/config`   | Update shadow routing percentage         |
 | GET    | `/health`   | Liveness probe                           |
 
-### Live deployment (dev)
+### Live deployment
 
-App URL: **https://llm-eval-api-dev-8d2f6.ondigitalocean.app**
+| Environment | App | URL |
+|-------------|-----|-----|
+| dev | `llm-eval-api-dev` | **https://llm-eval-api-dev-8d2f6.ondigitalocean.app** |
+| production | `llm-eval-api-production` | **https://llm-eval-api-production-aipb9.ondigitalocean.app** |
 
-Production uses a separate App Platform stack (`ENVIRONMENT=production`): app `llm-eval-api-production`, sharing the account DOCR registry `llmeval-dev` (DigitalOcean allows one registry per account). Terraform state is stored per environment in `terraform/state/{environment}.tfstate`.
+Both environments share the account DOCR registry `llmeval-dev` (DigitalOcean allows one registry per account). Terraform state is stored per environment in `terraform/state/{environment}.tfstate`.
 
 ```bash
+# Dev smoke test
 APP_URL=https://llm-eval-api-dev-8d2f6.ondigitalocean.app
 
 curl -s "$APP_URL/health" | jq .
@@ -140,6 +144,9 @@ curl -s -X POST "$APP_URL/v1/chat" \
     "messages": [{"role": "user", "content": "Reply with JSON only: {\"action\": \"buy\"}"}],
     "temperature": 0
   }' | jq .
+
+# Production live integration tests (includes /v1/chat when RUN_LIVE_CHAT=1)
+INTEGRATION_APP_URL=https://llm-eval-api-production-aipb9.ondigitalocean.app RUN_LIVE_CHAT=1 make test-live
 ```
 
 Default models on App Platform: **primary** `llama3.3-70b-instruct`, **candidate** `mistral-3-14B` (DigitalOcean Inference model IDs).
