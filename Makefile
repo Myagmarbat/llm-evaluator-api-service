@@ -8,7 +8,7 @@ help:
 	@echo "  docker-run   Run container locally on :8000"
 	@echo "  tf-init      Initialize Terraform (local backend)"
 	@echo "  tf-plan      Plan infrastructure changes"
-	@echo "  tf-apply     Apply infrastructure (requires TF_VAR_do_token)"
+	@echo "  tf-apply     Apply infrastructure (loads .env if present)"
 	@echo "  tf-destroy   Destroy infrastructure"
 
 install:
@@ -29,10 +29,10 @@ tf-init:
 	cd terraform && terraform init -input=false
 
 tf-plan:
-	cd terraform && terraform plan -var="image_tag=latest"
+	./scripts/tf.sh plan -var="image_tag=$${IMAGE_TAG:-latest}"
 
 tf-apply:
-	cd terraform && terraform apply -var="image_tag=latest"
+	./scripts/tf.sh apply -var="image_tag=$${IMAGE_TAG:-latest}"
 
 tf-destroy:
-	cd terraform && terraform destroy
+	./scripts/tf.sh destroy

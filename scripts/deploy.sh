@@ -14,6 +14,11 @@ if [[ -z "${DIGITALOCEAN_TOKEN:-}" ]]; then
   exit 1
 fi
 
+if [[ -z "${INFERENCE_API_KEY:-}" ]]; then
+  echo "error: INFERENCE_API_KEY is required" >&2
+  exit 1
+fi
+
 if ! command -v doctl >/dev/null 2>&1; then
   echo "error: doctl is required (https://docs.digitalocean.com/reference/doctl/)" >&2
   exit 1
