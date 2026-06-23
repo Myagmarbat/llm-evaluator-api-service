@@ -19,7 +19,7 @@ class Settings(BaseSettings):
     shadow_timeout_seconds: float = Field(default=30.0, gt=0)
     shadow_routing_percentage: float = Field(default=100.0, ge=0, le=100)
 
-    trace_db_path: str = "traces.db"
+    trace_db_path: str = "/tmp/traces.db"
     primary_timeout_seconds: float = Field(default=60.0, gt=0)
 
 

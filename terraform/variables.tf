@@ -45,8 +45,8 @@ variable "image_tag" {
 
 variable "instance_size_slug" {
   type        = string
-  description = "App Platform instance size for the API service."
-  default     = "basic-xxs"
+  description = "App Platform instance size. CPU autoscaling requires a dedicated CPU plan (apps-d-* or professional-*)."
+  default     = "apps-d-1vcpu-0.5gb"
 }
 
 variable "inference_base_url" {

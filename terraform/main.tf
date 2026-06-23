@@ -59,6 +59,11 @@ resource "digitalocean_app" "main" {
       }
 
       env {
+        key   = "TRACE_DB_PATH"
+        value = "/tmp/traces.db"
+      }
+
+      env {
         key   = "INFERENCE_API_KEY"
         value = var.inference_api_key
         type  = "SECRET"
