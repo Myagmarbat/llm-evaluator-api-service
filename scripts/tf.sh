@@ -26,6 +26,12 @@ if [[ -z "${TF_VAR_do_token}" ]]; then
   exit 1
 fi
 
+if ! grep -q 'cpu_autoscaling_enabled' "${ROOT}/terraform/main.tf" 2>/dev/null; then
+  echo "error: terraform/main.tf is outdated (missing autoscaling guard)" >&2
+  echo "hint: run 'git pull origin main' and retry" >&2
+  exit 1
+fi
+
 if [[ -z "${TF_VAR_image_tag:-}" && -z "${IMAGE_TAG:-}" ]]; then
   if git -C "${ROOT}" rev-parse HEAD >/dev/null 2>&1; then
     export TF_VAR_image_tag="$(git -C "${ROOT}" rev-parse HEAD)"

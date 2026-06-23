@@ -217,6 +217,22 @@ Terraform provisions:
 
 App name is shortened for the 32-character App Platform limit: `llm-eval-api-{environment}`.
 
+Default App Platform size is `apps-d-1vcpu-0.5gb` (dedicated CPU, supports 2–10 autoscaling). Shared sizes like `basic-xxs` use a fixed 2-instance count instead.
+
+### Troubleshooting Terraform
+
+**`Autoscaling on CPU metrics is not allowed for instance_size_slug basic-xxs`**
+
+You are on an outdated `terraform/main.tf`. Update and retry:
+
+```bash
+git pull origin main
+grep cpu_autoscaling_enabled terraform/main.tf   # should match
+make tf-apply
+```
+
+If you intentionally use `basic-xxs`, the current config disables CPU autoscaling automatically — but you must be on the latest Terraform files.
+
 ### Authentication
 
 Provide credentials via environment variables (recommended):
