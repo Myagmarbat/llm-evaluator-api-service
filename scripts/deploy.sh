@@ -76,9 +76,30 @@ VAR_FILE_ARGS="$(terraform_var_file_args)"
 import_if_missing() {
   local resource="$1"
   local id="$2"
-  if ! terraform -chdir="${TERRAFORM_DIR}" state show "${resource}" >/dev/null 2>&1; then
-    terraform -chdir="${TERRAFORM_DIR}" import "${resource}" "${id}" >/dev/null 2>&1 || true
+  if terraform -chdir="${TERRAFORM_DIR}" state show "${resource}" >/dev/null 2>&1; then
+    return 0
   fi
+  echo "==> Importing ${resource} (${id})"
+  # shellcheck disable=SC2086
+  terraform -chdir="${TERRAFORM_DIR}" import ${VAR_FILE_ARGS} "${resource}" "${id}" || true
+}
+
+import_existing_app() {
+  local app_name="llm-eval-api-${ENVIRONMENT}"
+  if terraform -chdir="${TERRAFORM_DIR}" state show digitalocean_app.main >/dev/null 2>&1; then
+    return 0
+  fi
+
+  local app_id
+  app_id="$(doctl apps list --format Spec.Name,ID --no-header 2>/dev/null \
+    | awk -v name="${app_name}" '$1 == name { print $2; exit }')"
+  if [[ -z "${app_id}" ]]; then
+    return 0
+  fi
+
+  echo "==> Importing existing App Platform app ${app_id} (${app_name})"
+  # shellcheck disable=SC2086
+  terraform -chdir="${TERRAFORM_DIR}" import ${VAR_FILE_ARGS} digitalocean_app.main "${app_id}" || true
 }
 
 echo "==> Applying container registry..."
@@ -99,6 +120,8 @@ doctl registry login
 docker build -t "${IMAGE}" -t "${REGISTRY_ENDPOINT}/${PROJECT_NAME}:latest" "${PROJECT_ROOT}"
 docker push "${IMAGE}"
 docker push "${REGISTRY_ENDPOINT}/${PROJECT_NAME}:latest"
+
+import_existing_app
 
 echo "==> Applying App Platform service..."
 # shellcheck disable=SC2086

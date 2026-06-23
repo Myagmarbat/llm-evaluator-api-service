@@ -90,12 +90,20 @@ jobs:
         with:
           token: ${{ secrets.DIGITALOCEAN_TOKEN }}
 
+      - name: Restore Terraform state (dev)
+        uses: actions/cache@v4
+        with:
+          path: terraform/state
+          key: terraform-state-dev
+          restore-keys: |
+            terraform-state-dev-
+
       - name: Deploy dev
         run: ./scripts/deploy.sh
 
       - name: Save dev app URL
         id: dev_url
-        run: echo "url=$(ENVIRONMENT=dev ./scripts/tf.sh output -raw app_url)" >> "$GITHUB_OUTPUT"
+        run: echo "url=$(terraform -chdir=terraform output -raw app_url)" >> "$GITHUB_OUTPUT"
 
   integration-dev:
     runs-on: ubuntu-latest
@@ -120,11 +128,14 @@ jobs:
 
   deploy-production:
     runs-on: ubuntu-latest
-    needs: integration-dev
+    needs: [test, integration-dev]
     if: >-
-      github.event_name == 'push' ||
-      github.event.inputs.environment == 'production' ||
-      github.event.inputs.environment == 'both'
+      always() &&
+      needs.test.result == 'success' &&
+      (needs.integration-dev.result == 'success' || needs.integration-dev.result == 'skipped') &&
+      (github.event_name == 'push' ||
+       github.event.inputs.environment == 'production' ||
+       github.event.inputs.environment == 'both')
     environment: production
     outputs:
       url: ${{ steps.prod_url.outputs.url }}
@@ -146,12 +157,20 @@ jobs:
         with:
           token: ${{ secrets.DIGITALOCEAN_TOKEN }}
 
+      - name: Restore Terraform state (production)
+        uses: actions/cache@v4
+        with:
+          path: terraform/state
+          key: terraform-state-production
+          restore-keys: |
+            terraform-state-production-
+
       - name: Deploy production
         run: ./scripts/deploy.sh
 
       - name: Save production app URL
         id: prod_url
-        run: echo "url=$(ENVIRONMENT=production ./scripts/tf.sh output -raw app_url)" >> "$GITHUB_OUTPUT"
+        run: echo "url=$(terraform -chdir=terraform output -raw app_url)" >> "$GITHUB_OUTPUT"
 
   integration-production:
     runs-on: ubuntu-latest
